@@ -1,0 +1,7 @@
+Neurogenesis provides a simple GUI that can be used to evolve recurrent neural networks that model multiple dimensional time series with long-term dependencies.
+
+The network model is a derivative of the so-called Long Short-Term Memory networks. These networks are grown, complexified, concurrently.
+
+Dependencies include: Scalala, Jung, JFreeChart...
+
+Not yet fully functional or bugfree.

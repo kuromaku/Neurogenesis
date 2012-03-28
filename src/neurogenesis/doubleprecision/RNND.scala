@@ -191,10 +191,18 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val X = evolinoFeed(inputData,actFun)
     val Xt = X.t
     val X2 = Xt * X
-    val XXinv = LinearAlgebra.pinv(X2.toDense)
-    val X3 = Xt * targetMatrix
-    val X4 = XXinv * X3
-    X4
+    try { 
+      val XXinv = LinearAlgebra.pinv(X2.toDense)
+      val X3 = Xt * targetMatrix
+      val X4 = XXinv * X3
+      X4
+    } catch {
+      case _ => {
+        val il = inputData.head.length
+        new DenseMatrix(il,targetMatrix.numCols,new Array[Double](il*targetMatrix.numCols))
+      }
+    }
+
   }
   def evolinoValidate(in2:Traversable[Array[Double]],out2:Traversable[Array[Double]],actFun:Function1[Double,Double],rMatrix:DenseMatrix[Double]) : Double = {
     var error = 0.0

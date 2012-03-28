@@ -263,14 +263,16 @@ class EvolverInterface extends SimpleSwingApplication {
       allNets(i) = new NetPopulationD(allPops(i))
       allNets(i).init
       allEvolvers(i) = new NeuralEvolver(allPops(i),allNets(i),supervisor,1,supervisor.getReporter)
-      allEvolvers(i).addData(dworker.getAsList(0),dworker.getAsList(1))
+      allEvolvers(i).addDLists(dworker.getDLists)
       allEvolvers(i).setActFun(actFun)
       allEvolvers(i).setBurstFreq(burstMutationFreq)
       allEvolvers(i).setPrintInfo(printInfo)
       allEvolvers(i).setEvoMode(modes.indexOf(modeSelector.selection.item))
+      /*
       if (evolutionMode == 2) {
         allEvolvers(i).addData2(dworker.getAsList(2),dworker.getAsList(3))
       }
+      */
       //allEvolvers(i).setMutationProb(mutProb)
       //allEvolvers(i).setFlipProb(flipProb)
       reportArea.append(allEvolvers(i).getSimpleRepresentation)
@@ -417,6 +419,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`runLeastSquares`) => {
 	    val bestRNN = supervisor.getSuperStar
+	    bestRNN.reset
 	    val trData1 = bestRNN.evolinoFeed(dworker.getAsList(0),actFun)
 	    var trData2 = bestRNN.evolinoFeed(dworker.getAsList(2),actFun)
 	    NeuralOps.runLinearRegression(NeuralOps.matrix2List(trData1),dworker.getAsList(1),NeuralOps.matrix2List(trData2),dworker.getAsList(3),reportArea)
@@ -433,9 +436,9 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`calculateValidationError`) => {
 	    val bestRNN = supervisor.getSuperStar.makeClone
-	    bestRNN.feedData(dworker.getAsList(0),actFun)
-	    val res1 = bestRNN.feedData(dworker.getAsList(2),actFun)
-	    reportArea.append("Validation error was: "+NeuralOps.totalError(dworker.getAsList(3),res1.toList)+"\n")
+	    bestRNN.feedData(dworker.getData(0),actFun)
+	    val res1 = bestRNN.feedData(dworker.getData(2),actFun)
+	    reportArea.append("Validation error was: "+NeuralOps.totalError(dworker.getData(3),res1.toList)+"\n")
 	  }
 	  case ButtonClicked(`autoSaveButton`) => {
 	    if (autoSave == 0) {

@@ -27,6 +27,8 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
   var saveCounter = 1
   var saveFrequency = 5000L
   var savePath = "./saves/"
+  var exitCounter = 0
+  
   def act : Unit = {
     loop {
       react {
@@ -91,7 +93,12 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
             e._1 ! "Exit"
           }
           reporter ! "Exit"
-          exit
+        }
+        case "Exiting" => {
+          exitCounter += 1
+          if (exitCounter == evolvers.size) {
+            exit
+          }
         }
       }
 

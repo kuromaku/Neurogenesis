@@ -115,7 +115,7 @@ package object NeuralOps {
       
     //Plotting.hold(true)
     } catch {
-      case _ => rArea.append("Could not complete linear regression do to a singular inversion matrix.")
+      case _ => rArea.append("Could not complete linear regression because of a singular inversion matrix.")
     }
   }
 }

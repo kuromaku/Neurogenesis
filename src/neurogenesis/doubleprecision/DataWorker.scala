@@ -3,7 +3,6 @@ package neurogenesis.doubleprecision
 import scala.io.Source
 import scala.actors.Actor
 import java.io._
-import scala.collection.mutable.LinkedList
 import scala.collection.mutable.ArrayOps
 import java.util.Scanner
 import scalala.library.Storage
@@ -12,17 +11,16 @@ import scalala.generic.collection.CanViewAsTensor1._
 import scalala.tensor.dense.DenseVectorCol
 import scalala.library.Plotting
 class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:Boolean) extends Actor {
-	var data = new LinkedList[Array[Array[Double]]]()
+	var data = List[List[Array[Double]]]()
 	//var data2 = new LinkedList[DenseMatrix[Double]]()
-	//var data2 = new List[Array[Array[Double]]]()
 	var normalizeData = autoNormalize
 	var counter = 0
 	var normalizers = List[Array[(Double,Double)]]()
 	var dimensionsAgree = true
 	//var counter2 = 0
 	def getCount : Int = counter
-	def getData : Array[Array[Double]] = data(0)
-	def getData(idx:Int) : Array[Array[Double]] = data(idx)
+	def getData : Array[Array[Double]] = data.head.toArray
+	def getData(idx:Int) : List[Array[Double]] = data.apply(idx)
 	def checkData : Unit = {
 	  if (counter == 2) {
 	    if (data.head(0).length == data.tail.head(0).length) {
@@ -41,8 +39,8 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	    }
 	  }
 	}
-	def getDataList : LinkedList[Array[Double]] = {
-	  var dlist = new LinkedList[Array[Double]]()
+	def getDataList : List[Array[Double]] = {
+	  var dlist = List[Array[Double]]()
 	  val a1 = data.apply(0)
 	  for (i <- 0 until a1.length) {
 	    dlist = dlist.+:(a1(i))
@@ -56,6 +54,8 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	def getAsList(idx:Int) : List[Array[Double]] = {
 	  data.apply(idx).toList //
 	}
+	def getDLists : List[List[Array[Double]]] = data
+	
 	def getDims : Array[Int] = {
 	  val dims = new Array[Int](2)
 	  dims(0) = data.head(0).length
@@ -73,35 +73,12 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	              reporter ! ProgressMessage("Dataworker finished reading a new data array from file "+file.getPath())
 	            else
 	              reporter ! ProgressMessage("Dataworker finished reading the first data array from file "+file.getPath())
-	            worker ! AnotherArray(data.apply(counter-1))
+	            worker ! AnotherDataList(data.apply(counter-1))
 	          }
 	        }
 	      }
 	    }
 	  }
-	}
-	def readDoubles(src:File) : Boolean = {
-	  var d = new LinkedList[LinkedList[Double]]
-	  
-	  for (line <- Source.fromFile(src).getLines) {
-	    val scanner = new Scanner(line)
-	    var doubles = new LinkedList[Double]
-	    while (scanner.hasNext()) {
-	      doubles = doubles :+(scanner.nextDouble)
-	    }
-	    d = d :+(doubles)
-	  }
-	  val size = d.size
-	  var idx = 0
-	  
-	  data = data :+(new Array[Array[Double]](size))
-	  val a = data.apply(counter)
-	  for (line <- d) {
-	    a(idx) = line.toArray
-	    idx += 1
-	  }
-	  counter += 1
-	  return true
 	}
 	def readMatrix(src:File) : Unit = {
 	  val fileIn = new BufferedInputStream(new FileInputStream(src))
@@ -127,13 +104,14 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	      norm(i) = (mean,width)
 	    }
 	    normalizers = normalizers.:+(norm)
-	    data = data :+(a)
+	    data = data :+(a.toList)
 	    counter += 1
 	  }
 	  else {
-	    matrix2Array(mat)
+	    matrix2List(mat)
 	  }
 	}
+	/*
 	def matrix2Array(mtr:DenseMatrix[Double]) : Unit = {
 	  val arr = new Array[Array[Double]](mtr.numRows)
 	  val nc = mtr.numCols
@@ -145,6 +123,19 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	  }
 	  data = data :+(arr)
 	  counter += 1
+	}
+	*/
+	def matrix2List(mtr:DenseMatrix[Double]) : Unit = {
+	  var dl = List[Array[Double]]()
+	  val nc = mtr.numCols
+	  for (i <- 0 until mtr.numRows) {
+	    val a = new Array[Double](nc)
+	    for (j <- 0 until nc) {
+	      a(j) = mtr.apply(i,j)
+	    }
+	    dl = dl.:+(a)
+	  }
+	  data = data.:+(dl)
 	}
 	def printData(idx:Int) : Unit = {
 	  println("Data size is: "+data.size)

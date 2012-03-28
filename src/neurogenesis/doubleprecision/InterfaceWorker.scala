@@ -9,7 +9,7 @@ class InterfaceWorker(area:TextArea,lbl:Label,btn:Button) extends Actor {
   def act : Unit = {
     loop {
       react {
-        case AnotherArray(a) => {
+        case AnotherDataList(a) => {
           count += 1
           lbl.text_=("Data Arrays: "+count)
           var maxLines = 100

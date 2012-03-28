@@ -2,6 +2,8 @@ Neurogenesis provides a simple GUI that can be used to evolve recurrent neural n
 
 The network model is a derivative of the so-called Long Short-Term Memory networks. These networks are grown, complexified, concurrently.
 
+With the GUI you can read data from text files with one feature vector of double values (space separated) on each row. You can select multiple files at the same time provided they are in the order (1 training inputs, 2 training targets, 3 validation inputs, 4 validation targets).
+
 Dependencies include: Scalala, Jung, JFreeChart...
 
-Not yet fully functional or bugfree.
+Not yet fully functional or anything close to bugfree.

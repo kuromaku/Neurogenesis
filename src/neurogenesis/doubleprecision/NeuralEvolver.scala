@@ -14,15 +14,18 @@ import scalala.library.Storage
 
 class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter) extends Actor {
   var proceed = true
+  /*
   var inputData = List[Array[Double]]()
   var outputData = List[Array[Double]]()
   var valInput = List[Array[Double]]()
   var valTarget = List[Array[Double]]()
+  */
+  var dataSets = List[List[Array[Double]]]() // 0 training inputs 1 training targets 2 validation inputs 3 validation targets...
   
   var cellPopulation = cellPop
   var netPopulation = netPop
   var actFun: Function1[Double,Double] = new SigmoidExp
-  val distribution = new CauchyDistribution(0.05)
+  val distribution:Distribution = new CauchyDistribution(0.05)
   var schedule: CoolingSchedule = new SimpleSchedule(0.05,0.02,50000)
   val rnd = new Random
   var savePath = "./saves/"
@@ -34,6 +37,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var noImprovementCounter = 0
   var burstMutationFreq = 15
   var spawningFreq = 50
+  val freqIncrement = 20
+  
   var mutateNow = false
   var updatingNow = false
   //var obsolete = false
@@ -59,8 +64,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           //currentStep += 1
           for (i <- 0 until netPopulation.getSize) {
             if (evoMode < 2) {
-              val res = netPopulation.getRNN(i).feedData(inputData,actFun)
-              var mse = if (evoMode < 2) totalError(outputData,res) else totalError2(inputData,res)
+              val res = netPopulation.getRNN(i).feedData(dataSets.apply(0),actFun)
+              var mse = totalError(dataSets.apply(1),res)
               var fn = 10.0/mse
               if (fn.isNaN()) {
                 fn = 0
@@ -68,8 +73,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               netPopulation.getRNN(i).setFitness(fn)
             }
             else if (evoMode == 2) {
-              val rM = netPopulation.getRNN(i).linearRegression(inputData,NeuralOps.list2Matrix(outputData),actFun)
-              val err = netPopulation.getRNN(i).evolinoValidate(valInput,valTarget,actFun,rM)
+              val rM = netPopulation.getRNN(i).linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
+              val err = netPopulation.getRNN(i).evolinoValidate(dataSets.apply(2),dataSets.apply(3),actFun,rM)
               var fn = 100.0/err
               if (fn.isNaN()) {
                 fn = 0
@@ -81,7 +86,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           val bestFitness = netPopulation.getBestFitness
           if (lastBestFitness < bestFitness) {
             lastBestFitness = bestFitness
-            addToBestNets(netPopulation.getBestNet(bestFitness))
+            addToBestNets(netPopulation.getRNN(netPopulation.netPop.length-1))
             if (printInfo) {
               reporter ! ProgressMessage("Evo "+myId+" found a new better solution with fitness: "+bestFitness.toString.substring(0,7))
               reporter ! ProgressMessage("There was no progress for "+noImprovementCounter+" generations")
@@ -110,7 +115,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             netPop.repopulate(cellPopulation,bestNets,distribution,schedule.getProb1,schedule.getProb2,rnd)
           }
           else {
-            
+            netPop.repopulate(cellPopulation)
           }
           if (spawnNow) {
             val cPop2 = cellPopulation.complexify(false,rnd)
@@ -120,13 +125,16 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             val nPop3 = new NetPopulationD(cPop3)
             nPop3.init
             val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter)
-            evo2.addData(inputData,outputData)
+            //evo2.addData(inputData,outputData)
             evo2.setEvoMode(evoMode)
             val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter)
-            evo3.addData(inputData,outputData)
+            //evo3.addData(inputData,outputData)
+            evo2.addDLists(dataSets)
+            evo3.addDLists(dataSets)
             if (evoMode == 2) {
-              evo2.addData2(valInput,valTarget)
-              evo3.addData2(valInput,valTarget)
+
+              //evo2.addData2(valInput,valTarget)
+              //evo3.addData2(valInput,valTarget)
             }
             
             evo3.setEvoMode(evoMode)
@@ -169,13 +177,17 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           if (!saveDir.exists()) {
             saveDir.mkdir()
           }
-          saveBestNet(new File(savePath+"rnn"+schedule.getCurrent+"id"+myId+"blocks"+cellPopulation.getBlocks+"memCells"+cellPopulation.blockPop(0)(0).getNumOfCells+".xml"))
+          if (schedule.getCurrent > 1000) {
+            saveBestNet(new File(savePath+"rnn"+schedule.getCurrent+"id"+myId+"blocks"+cellPopulation.getBlocks+"memCells"+cellPopulation.blockPop(0)(0).getNumOfCells+".xml"))
+          }
+          supervisor ! "Exiting"
           exit()
         }
       }
     }
 
   }
+  /*
   def addData(inDat:List[Array[Double]],tgtDat:List[Array[Double]]) : Unit = {
     inputData = inDat
     outputData = tgtDat
@@ -184,6 +196,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     valInput = inDat2
     valTarget = tgtDat
   }
+  */
+  def addDLists(dat:List[List[Array[Double]]]) : Unit = { dataSets = dataSets ++ dat }
+  
+
   def addToBestNets(net:RNND) : Boolean = {
     if (bestNets(0) == null) {
       bestNets(0) = net
@@ -275,7 +291,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     
     val b = (schedule.getCurrent % spawningFreq.toLong) == 0L
     if (b) {
-      spawningFreq += 10
+      spawningFreq += freqIncrement
     }
     b
   }
@@ -309,10 +325,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     val fw = new FileWriter(f)
     val found = false
     var idx = 4
-    while (bestNets(idx) == null && idx >= 0) {
+    while (idx >= 0 && bestNets(idx) == null) {
       idx -= 1
     }
+    
     if (idx > 0) {
+      
       val netAsXML = bestNets(idx).toXML
       scala.xml.XML.write(fw,netAsXML.head,"UTF-8",true,null)
       val fxml = <Fitness>{bestNets(idx).getFitness}</Fitness>
@@ -321,7 +339,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       fw.close
       
       if (evoMode == 2) {
-        val rM = bestNets(idx).linearRegression(inputData,NeuralOps.list2Matrix(outputData),actFun)
+        bestNets(idx).reset
+        val rM = bestNets(idx).linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
         val fw2 = new FileOutputStream(f.getParent()+"weightMatrix.txt")
         Storage.storetxt(fw2,rM)//
         fw2.close
@@ -350,6 +369,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     val rep = new StringBuilder("NeuralEvolver Id: "+myId+"\n")
     rep.append("Learning Mode: "+evoMode+"\n")
     rep.append("Distribution: "+distribution.toString+"\n")
+    rep.append("ActFun: "+actFun.toString+"\n")
+    rep.append("Schedule: "+schedule.toString+"\n")
     rep.toString
   }
 }

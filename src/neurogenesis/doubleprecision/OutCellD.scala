@@ -1,9 +1,9 @@
 package neurogenesis.doubleprecision
 
-import neuroprogressor._
+import neurogenesis.util.XMLOperator
 import scala.util.Random
 import scala.xml._
-
+import neurogenesis.util.Distribution
 class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   var stim: Double = 0
   var activation : Double = 0
@@ -37,10 +37,14 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   override def setFitness(f:Double) : Unit = {
     val c = rConns.calculateComplexity
     if (c != 0.0) {
-      fitness = f/c
+      if (f/c > fitness) {
+        fitness = f/c
+      }
     }
     else {
-      fitness = f
+      if (f > fitness) {
+        fitness = f
+      }
     }
   }
   /*Constructs an XML representation of this OutCellT

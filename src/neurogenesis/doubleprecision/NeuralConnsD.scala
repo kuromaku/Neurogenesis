@@ -9,7 +9,7 @@ import scala.util.Random
 import scala.collection.Map
 import scala.collection.Set
 import scala.xml.Elem
-
+import neurogenesis.util.Distribution
 class NeuralConnsD(min:Int,max:Int) {
   //type T = Double
 	var minNode = min
@@ -33,7 +33,18 @@ class NeuralConnsD(min:Int,max:Int) {
 	    false
 	  }
 	  else {
-	    conns = conns + ((dest,(weight,true)))
+	    val maxVal = 5.0
+	    if (Math.abs(weight) < maxVal) {
+	      conns = conns + ((dest,(weight,true)))
+	    }
+	    else {
+	      if (weight < 0) {
+	        conns = conns + ((dest,(-maxVal,true)))
+	      }
+	      else {
+	        conns = conns + ((dest,(maxVal,true)))
+	      }
+	    }
 	    true
 	  }
 	}
@@ -41,8 +52,23 @@ class NeuralConnsD(min:Int,max:Int) {
 	  if (conns.contains(dest)) {
 	    false
 	  }
-	  conns = conns + ((dest,(weight,expr)))
-	  true
+	  else {
+	    val maxVal = 3.0
+	    if (Math.abs(weight) > maxVal) {
+	      if (weight < 0) {
+	        conns = conns + ((dest,(-maxVal,expr)))
+	      }
+	      else {
+	        conns = conns + ((dest,(maxVal,expr)))
+	      }
+	    
+	    }
+	    else {
+	      conns = conns + ((dest,(weight,expr)))
+	    }
+	    true
+	  }
+
 	}
 	def addRandomConnection(rnd:Random) : Boolean = {
 		val dest = rnd.nextInt(maxNode-minNode)+minNode
@@ -129,95 +155,6 @@ class NeuralConnsD(min:Int,max:Int) {
 	  }
 	  conns = c2
 	}
-	/*
-	def combine(nc2:NeuralConnsD,dist:Random) : NeuralConnsD = {
-	  val c2 = nc2.getConns
-	  val cnn2 = new NeuralConnsD(min,max)
-	  
-	  cnn2
-	}
-	
-	def combine(nconn2:NeuralConns) : NeuralConns = {
-		val size1 = conns.size
-		val conns2 = nconn2.getConns
-		val size2 = conns2.size
-		var n = new NeuralConns(nconn2.getMin,nconn2.getMax)
-		var k:Int = 0
-		val hd0 = conns.head
-		val utl = conns2.until(hd0._1)
-		for (conn <- utl) {
-			n.addConnection(conn._1,conn._2)
-		}
-		for (conn <- conns) {
-		    k = conn._1
-			val utl2 = conns2.from(k)
-			if (utl2.size > 0) {
-				val hd = utl2.head
-				if (hd._1 == k) {
-					if (Math.random < 0.5) {
-						n.addConnection(conn._1,conn._2)
-					}
-					else {
-						n.addConnection(hd._1,hd._2)
-					}
-				}
-				else {
-					n.addConnection(conn._1,conn._2)
-				}
-			}
-			else {
-				n.addConnection(conn._1,conn._2)
-			}
-		    val aux = conns.from(k+1)
-		    val aux2 = utl2.from(k+1)
-		    if (aux != Nil && aux.head != Nil) {
-		    	val nk = aux.head._1
-		    
-		    	for (c <- aux2) {
-		    		if (c._1 < nk) {
-		    			n.addConnection(c._1,c._2)
-		    		}
-		    	}
-		    }
-		}
-		val rest = conns2.from(k+1)
-		for (conn <- rest) {
-			n.addConnection(conn._1,conn._2)
-		}
-		n
-	}
-	
-	def combine2(nconn2:NeuralConnsD,dist:Distribution) : NeuralConnsD = {
-		var n = new NeuralConnsD(nconn2.getMin,nconn2.getMax)
-		val hd0 = conns.head
-		val utl = nconn2.getConns.until(hd0._1)
-		var k = 0
-		for (conn <- utl) {
-			k = conn._1
-			n.addMutatedConnection(k,conn._2._1,dist)
-		}
-		val rest = nconn2.getConns.from(k)
-		for (conn <- conns) {
-			k = conn._1
-			if (rest.contains(k)) {
-				if (Math.random < 0.5) {
-					n.addMutatedConnection(k,conn._2._1,dist)
-				}
-				else {
-					n.addMutatedConnection(k,rest.apply(k),dist)
-				}
-			}
-			else {
-				n.addMutatedConnection(k,conn._2,dist)
-			}
-		}
-		val rest2 = rest.from(k)
-		for (conn <- rest2) {
-			n.addMutatedConnection(conn._1,conn._2,dist)
-		}
-		n
-	}
-	*/
 	def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double) : NeuralConnsD = {
 		var nc = new NeuralConnsD(minNode,maxNode)
 		val iter1 = conns.iterator
@@ -396,9 +333,9 @@ class NeuralConnsD(min:Int,max:Int) {
 				node = iter2.next
 				nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
 		}
-		//Let's add a random connection every once in a while
+		//Let's add or remove a random connection every once in a while
 		while (rnd.nextDouble < mutP) {
-		  if (rnd.nextDouble < 0.51) {
+		  if (rnd.nextDouble < 0.50) {
 		    nc.addRandomConnection(rnd)
 		  }
 		  else {
@@ -511,7 +448,7 @@ class NeuralConnsD(min:Int,max:Int) {
 	}
 	def setMax(m:Int) : Unit = { maxNode = m}
 	def setMin(m:Int) : Unit = { minNode = m}
-	def connsToString : String = getConns.toString()
+	def connsToString : String = conns.toString()
 	def toString2() : String = "<NeuralConnsD>\n"+conns.toString+"\n</NeuralConnsD>"
 	override def toString : String = conns.toString
 	def toXML : Elem = {

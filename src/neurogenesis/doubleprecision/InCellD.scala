@@ -1,12 +1,13 @@
 package neurogenesis.doubleprecision
-import neuroprogressor._
+import neurogenesis.util.XMLOperator
+import neurogenesis.util.Distribution
 import scala.util.Random
 import scala.xml._
 
 class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   var stim = 0d
   var activation = 0d
-  def activate(actFun: Function1[Double,Double]) : Double = {activation = actFun(stim.toDouble); activation }
+  def activate(actFun: Function1[Double,Double]) : Double = {activation = actFun(stim); activation }
   def addRandomConnections(num:Int,rnd:Random) : Int = {
     fConns.addRandomConnections(num,rnd)
   }
@@ -20,7 +21,10 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def getActivation : Double = activation
   override def setFitness(f:Double) : Unit = {
     val c = fConns.calculateComplexity+rConns.calculateComplexity
-    fitness = f/c
+    val fCand = f/c
+    if (fCand > fitness) {
+      fitness = fCand
+    }
   }
   def stimulate(s:Double) : Unit = { stim += s }
   

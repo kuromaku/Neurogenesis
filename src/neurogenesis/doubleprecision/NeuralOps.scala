@@ -2,11 +2,12 @@ package neurogenesis.doubleprecision
 import scala.xml.Elem
 import scala.xml.Node
 import scalala.tensor.dense.DenseMatrix
-
+import scalala.generic.collection.CanViewAsTensor1._
 import scalala.tensor.mutable.Matrix
 import scalala.library.LinearAlgebra
 import scalala.library.Plotting
 import scala.swing.TextArea
+import neurogenesis.util.XMLOperator
 
 package object NeuralOps {
   def fromXML(elem:Elem) : InCellD = {
@@ -55,6 +56,7 @@ package object NeuralOps {
       for (j <- 0 until l0.length) {
         mDat(idx*l0.length+j) = l0(j)
       }
+      idx += 1
     }
     new DenseMatrix[Double](l.size,l.head.length,mDat)
   }
@@ -87,33 +89,43 @@ package object NeuralOps {
     error = error
     error
   }
-  def runLinearRegression(d1:List[Array[Double]],d2:List[Array[Double]],d3:List[Array[Double]],d4:List[Array[Double]],rArea:TextArea) : Unit = {
-    val m1 = list2Matrix(d1)
-    val m2 = list2Matrix(d2)
-    
+  def runLinearRegression(m1:DenseMatrix[Double],d2:List[Array[Double]],m2:DenseMatrix[Double],d4:List[Array[Double]],rArea:TextArea) : Unit = {
+
+    //Regression formula B=(X^t * X)^-1 * X^t * Y  X*B=Y
     val mt = m1.t
     val mt2 = mt * m1
     try {
       val mInv = LinearAlgebra.pinv(mt2.toDense)
       rArea.append("Calculated the pseudo-inverse.\n")
-      val m3 = mt * m2
-      val m4 = mInv * m3
-    
-      val m5 = list2Matrix(d3)
-      val res = m5 * m4
-    
+      val m3 = mt * list2Matrix(d2)
+      val B = mInv * m3
+      
+      val res = m2 * B
       val rows = res.numRows
       val cols = res.numCols
-      Plotting.plot(m5.apply(new Range(0,rows,1),0),res.apply(new Range(0,rows,1),0))
-      Plotting.hold(true)
-      for (i <- 1 until cols) {
-        Plotting.subplot(cols+1,1,i+1)
-        Plotting.plot(m5.apply(new Range(0,rows,1),i),res.apply(new Range(0,rows,1),i))
-        Plotting.hold(true)
-      }
-      Plotting.hold(false)
+      val range = 0 until rows
+      val m5 = list2Matrix(d4)
       
-    //Plotting.hold(true)
+      val points = new Array[Int](rows)
+      for (i <- 0 until rows) { points(i) = i}
+      val p = ArrayI.apply(points)
+      Plotting.subplot(cols,1,1)
+      Plotting.plot(p,res.apply(range,0),'-',"b")
+      Plotting.hold(true)
+      Plotting.plot(p,m5.apply(range,0),'-',"r")
+      Plotting.title("Column 1")
+      Plotting.hold(false)
+      for (i <- 1 until cols) {
+        Plotting.subplot(cols,1,i+1)
+        Plotting.plot(p,res.apply(range,i),'-',"b")
+        Plotting.hold(true)
+        Plotting.plot(p,m5.apply(range,i),'-',"r")
+        Plotting.title("Column "+(i+1))
+        Plotting.hold(false)
+      }
+      rArea.append("B:\n"+B.toString+"\n")
+      rArea.append("Res:\n"+res.toString+"\n")
+      rArea.append("Target:\n"+m5.toString+"\n")
     } catch {
       case _ => rArea.append("Could not complete linear regression because of a singular inversion matrix.")
     }

@@ -1,6 +1,7 @@
 package neurogenesis.doubleprecision
 
-import neuroprogressor._
+import neurogenesis.msg._
+import neurogenesis.util.ProgressReporter
 
 import scala.actors.Actor
 import scala.collection.immutable.Queue
@@ -20,7 +21,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
   var maxGenerations = 10000L
   var counter = 1L
   val goOn = "Evolve"
-  val printInfo = true
+  var printInfo = true
   val reporter = new ProgressReporter(tArea)
   reporter.start
   var maxFit = 0.0d
@@ -42,15 +43,15 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
             if (evolvers(i)._2 < counter && !evolvers(i)._1.isRunning && runningThreads < maxThreads) {
               evolvers(i)._1 ! UpdateNow(counter)
               runningThreads += 1
-
+              if (printInfo) {
+                reporter ! ProgressMessage("Number of running threads: "+runningThreads)
+              }
             }
             if (saveFrequency > 1 && counter % saveFrequency == 0L) {
               evolvers(i)._1 ! Save2File(new File(savePath+saveCounter+"g"+evolvers(i)._2+".xml"))
             }
           }
-          if (printInfo) {
-            reporter ! ProgressMessage("Number of running threads: "+runningThreads)
-          }
+
         }
         case StatusMessage(bestFitness,from) => {
           //fitnessTable = fitnessTable.+:((bestFitness,from))
@@ -97,6 +98,9 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
         case "Exiting" => {
           exitCounter += 1
           if (exitCounter == evolvers.size) {
+            if (printInfo) {
+              reporter ! ProgressMessage("Supervisor says Goobye!")
+            }
             exit
           }
         }
@@ -121,6 +125,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
   def getReporter : ProgressReporter = reporter
   def setThreads(maxT:Int) : Unit = { maxThreads = maxT }
   def setMaximumGenerations(g:Long) : Unit = { maxGenerations = g }
+  def setPrintInfo(b:Boolean) : Unit = { printInfo = b }
   def processData : Unit = {
     runningThreads -= 1
     evolvers = evolvers.sortWith(_._2 < _._2) //

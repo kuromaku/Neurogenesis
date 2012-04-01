@@ -2,6 +2,8 @@ package neurogenesis.doubleprecision
 
 import scala.util.Random
 import scala.xml._
+import neurogenesis.util.XMLOperator
+import neurogenesis.util.Distribution
 
 class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD]) extends EvolvableD {
  val memState = new Array[Double](fConns.length)
@@ -179,7 +181,10 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    for (i <- 0 until fConns.length) {
      c += fConns(i).calculateComplexity + rConns(i).calculateComplexity
    }
-   fitness = f/c
+   val fCand = f/c
+   if (fCand > fitness) {
+     fitness = fCand
+   }
  }
  def stimulate2(addStims:Array[Double]) : Unit = {
    for (i <- 0.to(stims.length)) {

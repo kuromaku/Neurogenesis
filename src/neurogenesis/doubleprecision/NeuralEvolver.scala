@@ -1,6 +1,7 @@
 package neurogenesis.doubleprecision
 
-
+import neurogenesis.msg._
+import neurogenesis.util._
 import scala.actors.Actor
 //import scala.collection.mutable.LinkedList
 import scala.collection.immutable.List
@@ -12,7 +13,7 @@ import java.io.FileWriter
 import scala.xml._
 import scalala.library.Storage
 
-class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter) extends Actor {
+class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter,rnd:Random) extends Actor {
   var proceed = true
   /*
   var inputData = List[Array[Double]]()
@@ -27,7 +28,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var actFun: Function1[Double,Double] = new SigmoidExp
   val distribution:Distribution = new CauchyDistribution(0.05)
   var schedule: CoolingSchedule = new SimpleSchedule(0.05,0.02,50000)
-  val rnd = new Random
+  //val rnd = new Random
   var savePath = "./saves/"
   var printInfo = true
   var myId = id
@@ -35,10 +36,11 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var lastBestFitness = 0d
   //var maxSteps = 5000
   var noImprovementCounter = 0
-  var burstMutationFreq = 15
+  var burstMutationFreq = 25
   var spawningFreq = 50
   val freqIncrement = 20
-  
+  var rePopulator:Repopulator[CellPopulationD] = new BasicRepopulator
+  var netRepopulator:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
   var mutateNow = false
   var updatingNow = false
   //var obsolete = false
@@ -48,6 +50,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setID(nid:Int) : Unit = { myId = nid }
   def setNetPop(np2:NetPopulationD) : Unit = { netPopulation = np2 }
   def setCellPop(cp2:CellPopulationD) : Unit = { cellPopulation = cp2 }
+  def setRepopulator(rp:Repopulator[CellPopulationD]) : Unit = { rePopulator = rp }
+  def setNetRepopulator(nrp:NetRepopulator[NetPopulationD,CellPopulationD]) : Unit = { netRepopulator = nrp }
   def isRunning : Boolean = updatingNow
   
   def act : Unit = {
@@ -74,12 +78,17 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             }
             else if (evoMode == 2) {
               val rM = netPopulation.getRNN(i).linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
-              val err = netPopulation.getRNN(i).evolinoValidate(dataSets.apply(2),dataSets.apply(3),actFun,rM)
-              var fn = 100.0/err
-              if (fn.isNaN()) {
-                fn = 0
+              if (rM != null) {
+                val err = netPopulation.getRNN(i).evolinoValidate(dataSets.apply(2),dataSets.apply(3),actFun,rM)
+                var fn = 1000000.0
+                if (err > 0.0) {
+                  fn = 100.0/err
+                }
+                netPopulation.getRNN(i).setFitness(fn)
               }
-              netPopulation.getRNN(i).setFitness(fn)
+              else {
+                netPopulation.getRNN(i).setFitness(0)
+              }
             }
           }
           netPopulation.sortPop
@@ -101,13 +110,23 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           }
           //netPop.repopulate(distribution,mutProb,flipProb,rnd)
           if (!mutateNow) {
-            cellPopulation.repopulate(distribution,schedule.getProb1,schedule.getProb2,rnd)
+            rePopulator.repopulate(cellPopulation,distribution,schedule,rnd)
+            /*
+            if (evoMode == 0) {
+              cellPopulation.repopulate(distribution,schedule,rnd)
+            }
+            else {
+              cellPopulation.repopulate(distribution,schedule,rnd,0.7)
+            }
+            */
           }
           else {
             cellPopulation.burstMutate(schedule.getProb1*1.5,distribution,rnd)
             mutateNow = false
             reporter ! ProgressMessage("Evolver id: "+myId+" undergoing burstmutation")
           }
+          netRepopulator.repopulate(netPopulation,cellPopulation,bestNets,distribution,schedule,rnd)
+          /*
           if (evoMode == 0 || (evoMode == 1 && !bestNetsReady)) {
             netPop.repopulate(cellPopulation)
           }
@@ -117,6 +136,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           else {
             netPop.repopulate(cellPopulation)
           }
+          */
           if (spawnNow) {
             val cPop2 = cellPopulation.complexify(false,rnd)
             val cPop3 = cellPopulation.complexify(true,rnd)
@@ -124,18 +144,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             nPop2.init
             val nPop3 = new NetPopulationD(cPop3)
             nPop3.init
-            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter)
+            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter,rnd)
             //evo2.addData(inputData,outputData)
             evo2.setEvoMode(evoMode)
-            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter)
+            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter,rnd)
             //evo3.addData(inputData,outputData)
             evo2.addDLists(dataSets)
             evo3.addDLists(dataSets)
-            if (evoMode == 2) {
-
-              //evo2.addData2(valInput,valTarget)
-              //evo3.addData2(valInput,valTarget)
-            }
             
             evo3.setEvoMode(evoMode)
             supervisor ! BirthMessageD(evo2)
@@ -366,11 +381,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     schedule = cs
   }
   def getSimpleRepresentation : String = {
-    val rep = new StringBuilder("NeuralEvolver Id: "+myId+"\n")
+    val rep = new StringBuilder("NeuralEvolver:\n")
     rep.append("Learning Mode: "+evoMode+"\n")
     rep.append("Distribution: "+distribution.toString+"\n")
     rep.append("ActFun: "+actFun.toString+"\n")
     rep.append("Schedule: "+schedule.toString+"\n")
+    rep.append(rePopulator.toString)
+    rep.append()
     rep.toString
   }
 }

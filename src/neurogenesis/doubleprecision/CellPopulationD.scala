@@ -1,4 +1,5 @@
 package neurogenesis.doubleprecision
+import neurogenesis.util._
 import scala.util.Random
 import java.io.File
 import java.io.FileReader
@@ -15,6 +16,10 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   def getIn : Int = inputs
   def getOut : Int = outputs
   def getBlocks : Int = blocks
+  def getInPop = inputPop
+  def getBlockPop = blockPop
+  def getOutPop = outputPop
+  
   //var mutProb = 0.1d
   //var flipProb = 0.01d
   var connProb = 0.5
@@ -284,10 +289,12 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     }
   }
   */
-  /*Evolves the next generation of this CellPopulation
+  /*Produces the next generation of this CellPopulation
    * 
    */
-  def repopulate(dist:Distribution,mutProb:Double,flipProb:Double,rnd:Random) : Unit = {
+  def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:Random) : Unit = {
+    val mutProb = schedule.getProb1
+    val flipProb = schedule.getProb2
     val h = (popSize/2).toInt
     var ipop = new Array[Array[InCellD]](inputs)
     /*
@@ -355,6 +362,90 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         else {
           nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb)
         }
+      }
+      outputPop(i) = nextGen
+    }
+    
+  }
+  def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:Random,cutRatio:Double) : Unit = {
+    val mutProb = schedule.getProb1
+    val flipProb = schedule.getProb2
+    val h = (cutRatio*popSize).toInt
+    var ipop = new Array[Array[InCellD]](inputs)
+    /*
+    println("Repopulating following inputCells: ")
+    for (i <- 0 until inputs) {
+      for (j <- 0 until inputPop(i).length) {
+        println(inputPop(i)(j))
+      }
+    }
+    */
+    for (i <- 0 until inputs) {
+      inputPop(i) = inputPop(i).sortWith(_.getFitness < _.getFitness)
+      val nextGen = new Array[InCellD](popSize)
+      /*
+      for (j <- 0 until popSize) {
+        nextGen(j) = inputPop(i)(j).makeClone
+      }
+      */
+      val fArray = getCDF(inputPop(i)) //
+      for (k <- 0 until h) {
+        var idx1 = getIDX(rnd.nextDouble,fArray)
+        var idx2 = getIDX(rnd.nextDouble,fArray)
+        var counter = 0
+        while (idx1 == idx2 && counter < 7) {
+          idx2 = getIDX(rnd.nextDouble,fArray)
+          counter += 1
+        }
+        nextGen(k) = inputPop(i)(idx1).combine(inputPop(i)(idx2),dist,mutProb,flipProb)
+      }
+      for (k <- h until popSize) {
+        nextGen(k) = inputPop(i)(k)
+      }
+      inputPop(i) = nextGen
+    }
+    //var bpop = new Array[Array[CellBlockD]](inputs)
+    for (i <- 0 until blocks) {
+      blockPop(i) = blockPop(i).sortWith(_.getFitness < _.getFitness)
+      val nextGen = new Array[CellBlockD](popSize)
+      val fArray = getCDF(blockPop(i))
+      for (j <- 0 until h) {
+        val k = getIDX(rnd.nextDouble,fArray)
+        var l = getIDX(rnd.nextDouble,fArray)
+        var counter = 0
+        while (l == k && counter < 7) {
+          l = getIDX(rnd.nextDouble,fArray)
+          counter += 1
+        }
+        nextGen(j) = blockPop(i)(k).combine(blockPop(i)(l),dist,mutProb,flipProb)
+      }
+      for (j <- h until popSize) {
+        nextGen(j) = blockPop(i)(j)
+      }
+      blockPop(i) = nextGen
+    }
+    //var opop = new Array[Array[OutCellD]](inputs)
+    for (i <- 0 until outputs) {
+      outputPop(i) = outputPop(i).sortWith(_.getFitness < _.getFitness)
+      val nextGen = new Array[OutCellD](popSize)
+      val fArray = getCDF(outputPop(i))
+      for (j <- 0 until h) {
+        val k = getIDX(rnd.nextDouble,fArray)
+        var l = getIDX(rnd.nextDouble,fArray)
+        var counter = 0
+        while (l == k && counter < 7) {
+          l = getIDX(rnd.nextDouble,fArray)
+          counter += 1
+        }
+        if (counter == 7) {
+          nextGen(j) = outputPop(i)(l).burstMutate(0.3,dist,rnd)
+        }
+        else {
+          nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb)
+        }
+      }
+      for (j <- h until popSize) {
+        nextGen(j) = outputPop(i)(j)
       }
       outputPop(i) = nextGen
     }

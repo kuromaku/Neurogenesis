@@ -7,13 +7,9 @@ trait EvolvableD {
   def getFitness : Double = fitness
   def setFitness(f:Double) : Unit = { fitness = f }
   def makeClone : EvolvableD
-  //def combine[T <: Evolvable](e2:T,dist:Distribution,mutP:Double,flipP:Double) : T
-  //def combine(e2:Evolvable,dist:Distribution,mutP:Double,flipP:Double) : Evolvable
-  //def complexify [T <: Evolvable] (in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean) : T
-  //def burstMutate(prob:Double,dist:Distribution,rnd:Random) : Evolvable
+  
   def sort[T <: EvolvableD](a:Array[T]) : Array[T] = {
-    val sorted = a.sortWith((_.getFitness < _.getFitness))
-    sorted
+    a.sortWith((_.getFitness < _.getFitness))
   }
   def insertionSort[T <: EvolvableD](a:Array[T]) : Array[T] = {
     var i = 0

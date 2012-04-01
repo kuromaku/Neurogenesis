@@ -9,33 +9,33 @@ import edu.uci.ics.jung.graph.SparseGraph
 import scalala.library.LinearAlgebra
 import edu.uci.ics.jung.graph.util.Pair
 import edu.uci.ics.jung.graph.util.EdgeType
-
+import neurogenesis.util.XMLOperator
+import neurogenesis.util.Distribution
 class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Array[OutCellD]) extends EvolvableD {
   val in = inputLayer.length
   val numBlocks = cellBlocks.length
   val blockSize = cellBlocks(0).getSize - 3 //
   val out = outputLayer.length
-  var firstInput = true
+  //var firstInput = true
   val memGates = cellBlocks(0).getSize //number of inputs the blocks have 
   val midPoint = in + numBlocks*memGates //after these only output cells remain
   
-  
   def activate(inputs:Array[Double],actFun:Function1[Double,Double]) : Array[Double] = {
 	  val res = new Array[Double](outputLayer.size)
-	  if (!firstInput) {
-		for (i <- 0.until(inputs.length)) {
-	      stimulate(inputLayer(i).getActivation,inputLayer(i).getRecurrent)
-	    }
-		for (i <- 0.until(numBlocks)) {
-		  val acts = cellBlocks(i).activate
-		  for (j <- 0.until(acts.length)) {
-		    stimulate(acts(j),cellBlocks(i).getRecurrent(j))
-		  }
-		}
-		for (i <- 0.until(out)) {
-		  stimulate(outputLayer(i).getActivation,outputLayer(i).getRecurrent)
+	  //recurrent stimulations based on activations from the previous step
+	  for (i <- 0.until(inputs.length)) {
+	    stimulate(inputLayer(i).getActivation,inputLayer(i).getRecurrent)
+	  }
+	  for (i <- 0.until(numBlocks)) {
+		val acts = cellBlocks(i).activate
+		for (j <- 0.until(acts.length)) {
+		  stimulate(acts(j),cellBlocks(i).getRecurrent(j))
 		}
 	  }
+	  for (i <- 0.until(out)) {
+		stimulate(outputLayer(i).getActivation,outputLayer(i).getRecurrent)
+	  }
+	  //forward connections next
 	  val actInput = new Array[Double](inputs.length)
 	  for (i <- 0.until(inputs.length)) {
 	    inputLayer(i).stimulate(inputs(i))
@@ -51,7 +51,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
 	  for (i <- 0.until(out)) {
 	    res(i) = outputLayer(i).activate(actFun)
 	  }
-	  firstInput = false
+	  
 	  res
   }
   /**Adds recurrent stimulations to the network
@@ -73,9 +73,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   }
   def evolinoActivate(inputs:Array[Double],actFun:Function1[Double,Double]) : Array[Double] = {
 	  val res = new Array[Double](outputLayer.size+numBlocks*blockSize)
-	  if (!firstInput) {
-		recStim
-	  }
+	  recStim
 	  val actInput = new Array[Double](inputs.length)
 	  for (i <- 0.until(inputs.length)) {
 	    inputLayer(i).stimulate(inputs(i))
@@ -96,7 +94,6 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
           res(out+i*blockSize+j) = cellBlocks(i).memState(j)
         }
       }
-	  firstInput = false
 	  res
   }
 	/*
@@ -198,8 +195,9 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       X4
     } catch {
       case _ => {
-        val il = inputData.head.length
-        new DenseMatrix(il,targetMatrix.numCols,new Array[Double](il*targetMatrix.numCols))
+        null
+        //val il = inputData.head.length
+        //new DenseMatrix(il,targetMatrix.numCols,new Array[Double](il*targetMatrix.numCols))
       }
     }
 
@@ -263,23 +261,23 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
   }
   def reset : Unit = {
-    firstInput = true
+    //firstInput = true
     for (b <- cellBlocks) {
       b.reset
     }
   }
   override def toString : String = {
-    var srep = "<RNND>"
+    var srep = "<RNND>\n"
     for (i <- 0.until(in)) {
-      srep += inputLayer(i)
+      srep += inputLayer(i)+"\n"
     }
     for (i <- 0.until(numBlocks)) {
-      srep += cellBlocks(i)
+      srep += cellBlocks(i)+"\n"
     }
     for (i <- 0.until(out)) {
-      srep += outputLayer(i)
+      srep += outputLayer(i)+"\n"
     }
-    srep += "</RNND>"
+    srep += "</RNND>\n"
     srep
 	}
   def toXML : Elem = {
@@ -312,8 +310,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
   }
   // SparseGraph[_ >: Nothing,_ >: Nothing]
-  def toGraph :  SparseGraph[Int,Int] = {
-    val graph = new SparseGraph[Int,Int]()
+  def toGraph :  SparseGraph[Int,String] = {
+    val graph = new SparseGraph[Int,String]()
     val totalNodes = midPoint + out + numBlocks*3 + in + out
     var idx = 0
     for (i <- 0 until totalNodes) {
@@ -323,14 +321,22 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       val cnn = inputLayer(i).getForward.conns
       for ((dest,(w,b)) <- cnn) {
         if (b) {
-          graph.addEdge(idx,new Pair[Int](i,dest),EdgeType.DIRECTED)
+          var ws = w.toString
+          if (ws.length > 4) {
+            ws = ws.substring(0,4)
+          }
+          graph.addEdge(idx+"f"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
         }
       }
       val rnn = inputLayer(i).getRecurrent.conns
       for ((dest,(w,b)) <- rnn) {
         if (b) {
-          graph.addEdge(idx,new Pair[Int](i,dest),EdgeType.DIRECTED)
+          var ws = w.toString
+          if (ws.length > 4) {
+            ws = ws.substring(0,4)
+          }
+          graph.addEdge(idx+"r"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
         }
       }
@@ -340,14 +346,22 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         val cnn = cellBlocks(i).getForward(j).conns
         for ((dest,(w,b)) <- cnn) {
           if (b) {
-            graph.addEdge(idx,new Pair[Int](in+i*memGates+j,dest),EdgeType.DIRECTED)
+            var ws = w.toString
+            if (ws.length > 4) {
+              ws = ws.substring(0,4)
+            }
+            graph.addEdge(idx+"f"+ws,new Pair[Int](in+i*memGates+j,dest),EdgeType.DIRECTED)
             idx += 1
           }
         }
         val cnn2 = cellBlocks(i).getRecurrent(j).conns
         for ((dest,(w,b)) <- cnn2) {
           if (b) {
-            graph.addEdge(idx,new Pair[Int](in+i*memGates+j,dest),EdgeType.DIRECTED)
+            var ws = w.toString
+            if (ws.length > 4) {
+              ws = ws.substring(0,4)
+            }
+            graph.addEdge(idx+"r"+ws,new Pair[Int](in+i*memGates+j,dest),EdgeType.DIRECTED)
             idx += 1
           }
         }
@@ -358,7 +372,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         if (cellBlocks(i).gateBits(j)) {
           for (k <- 0 until cellBlocks(i).getNumOfCells) {
             val m = in+i*memGates+j+memGates-3
-            graph.addEdge(idx,new Pair[Int](midPoint+out+i*nC+j,in+i*(nC+3)+k),EdgeType.DIRECTED)
+            graph.addEdge(idx+"g"+j+"c"+k,new Pair[Int](midPoint+out+i*nC+j,in+i*(nC+3)+k),EdgeType.DIRECTED)
             idx += 1
           }
         }
@@ -369,18 +383,22 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       val cnn = outputLayer(i).getRecurrent.conns
       for ((dest,(w,b)) <- cnn) {
         if (b) {
-          graph.addEdge(idx,new Pair[Int](midPoint+i,dest),EdgeType.DIRECTED)
+          var ws = w.toString
+          if (ws.length > 4) {
+            ws = ws.substring(0,4)
+          }
+          graph.addEdge(idx+"r"+ws,new Pair[Int](midPoint+i,dest),EdgeType.DIRECTED)
           idx += 1
         }
       }
     }
     //Lets add extra nodes connected to inputs to indicate input nodes
     for (i <- (totalNodes-in-out) until (totalNodes-out)) {
-      graph.addEdge(idx,new Pair[Int](i-in,totalNodes-i-out),EdgeType.DIRECTED)
+      graph.addEdge("input"+(i-totalNodes+out),new Pair[Int](i-in,totalNodes-i-out),EdgeType.DIRECTED)
       idx += 1
     }
     for (i <- midPoint until (midPoint+out)) {
-      graph.addEdge(idx,new Pair[Int](i,totalNodes-out+i-midPoint),EdgeType.DIRECTED)
+      graph.addEdge("output"+(midPoint+out-i),new Pair[Int](i,totalNodes-out+i-midPoint),EdgeType.DIRECTED)
       idx += 1
     }
     graph

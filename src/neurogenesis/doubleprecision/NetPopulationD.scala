@@ -1,18 +1,27 @@
 package neurogenesis.doubleprecision
-
+import neurogenesis.util.Distribution
 import scala.util.Random
 // extends NetPopulationT[Double]
 class NetPopulationD(cPop:CellPopulationD) {
-  var netPop = new Array[RNND](cPop.getSize)
+  var netPop = new Array[RNND](cPop.getSize*2)
   var sorted = false
+  def setSorted(b:Boolean) : Unit = { sorted = b }
+  
   //val arrOps = implicitly[ArrayOps]
   def init : Unit = {
     val inPerms = permutations(cPop.getSize,cPop.getIn)
     val blockPerms = permutations(cPop.getSize,cPop.getBlocks)
     val outPerms = permutations(cPop.getSize,cPop.getOut)
     val n = cPop.getNetworks(inPerms,blockPerms,outPerms)
-    for (i <- 0 until netPop.size) {
+    for (i <- 0 until cPop.getSize) {
       netPop(i) = n(i)
+    }
+    val inPerms2 = permutations(cPop.getSize,cPop.getIn)
+    val blockPerms2 = permutations(cPop.getSize,cPop.getBlocks)
+    val outPerms2 = permutations(cPop.getSize,cPop.getOut)
+    val n2 = cPop.getNetworks(inPerms,blockPerms,outPerms)
+    for (i <- cPop.getSize until netPop.length) {
+      netPop(i) = n2(i-cPop.getSize)
     }
   }
   def getBestFitness : Double = {
@@ -60,15 +69,16 @@ class NetPopulationD(cPop:CellPopulationD) {
     }
     a
   }
+  //The following functionality is becoming obsolete as it is being moved to NetRepopulator
   def repopulate(dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : Unit = {
     sortPop
     val l = netPop.length
     for (i <- 0 until l/2) {
-      val idx1 = l - (Math.random*l/2).toInt - 1
-      var idx2 = l - (Math.random*l/2).toInt - 1
+      val idx1 = l - rnd.nextInt(l/2) - 1
+      var idx2 = l - rnd.nextInt(l/2) - 1
       var count = 0
       while (idx2 == idx1 && count < 7) {
-        idx2 = l - (Math.random*l/2).toInt - 1
+        idx2 = l - rnd.nextInt(l/2) - 1
         count += 1
       }
       if (count == 7) {
@@ -76,7 +86,9 @@ class NetPopulationD(cPop:CellPopulationD) {
         netPop(i) = netPop(idx1).burstMutate(mutP,dist,rnd)
         //netPop(i).reset
       }
-      netPop(i) = netPop(idx1).combine(netPop(idx2),dist,mutP,flipP)
+      else {
+        netPop(i) = netPop(idx1).combine(netPop(idx2),dist,mutP,flipP)
+      }
     }
     sorted = false
   }
@@ -102,6 +114,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     for (i <- num until nCellPop.getSize) {
       netPop(i) = netPop(i).combine(bNets(rnd.nextInt(bNets.length)),dist,mutP,flipP,rnd)
     }
+    sorted = false
   }
   def sortPop : Unit = {
     if (!sorted) {

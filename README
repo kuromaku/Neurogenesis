@@ -6,4 +6,21 @@ With the GUI you can read data from text files with one feature vector of double
 
 Dependencies include: Scalala, Jung, JFreeChart...
 
+Download JUNG at http://jung.sourceforge.net/
+Scalala at https://github.com/scalala/Scalala
+JFreeChart at http://sourceforge.net/projects/jfreechart/files/
+
 Not yet fully functional or anything close to bugfree.
+
+However, for those who like to experiment, it's now possible to use Simple Build Tool (sbt) to compile and run the GUI to test the program. Example if you have sbt-launch.jar at /usr/bin/sbt-launch.jar and are located in the project folder: java $SBT_OPTS -Dfile.encoding=UTF-8 -Xss4M -Xmx1200M -XX:MaxPermSize=512M -XX:NewSize=128M -XX:NewRatio=3 -jar /usr/bin/sbt-launch.jar "$@"
+ 
+To make this work you should first clone the repository using git and then put the following jars into a folder lib/:
+collections-generic-4.01.jar  jfreechart-1.0.14.jar      jung-io-2.0.1.jar                         scala-library.jar
+colt-1.2.0.jar                jung-algorithms-2.0.1.jar  jung-visualization-2.0.1.jar              scalap.jar
+concurrent-1.3.4.jar          jung-api-2.0.1.jar         scalala_2.9.1-1.0.0.RC3-SNAPSHOT.jar      scala-swing.jar
+jcommon-1.0.17.jar            jung-graph-impl-2.0.1.jar  scalala_2.9.1-1.0.0.RC3-SNAPSHOT.min.jar
+
+(some other versions of those will probably work as well...)
+
+Of course eventually a fully working and runnable jar file will be added for the convenience of users.
+

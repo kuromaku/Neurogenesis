@@ -16,6 +16,9 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     var rc = rConns.burstMutate(prob,dist,rnd)
     new InCellD(fc,rc)
   }
+  def equals(other:InCellD) : Boolean = {
+    (fConns == other.getForward && rConns == other.getRecurrent)
+  }
   def getForward : NeuralConnsD = fConns
   def getRecurrent : NeuralConnsD = rConns
   def getActivation : Double = activation

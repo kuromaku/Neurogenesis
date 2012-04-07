@@ -12,7 +12,7 @@ JFreeChart at http://sourceforge.net/projects/jfreechart/files/
 
 Not yet fully functional or anything close to bugfree.
 
-However, for those who like to experiment, it's now possible to use Simple Build Tool (sbt) to compile and run the GUI to test the program. Example if you have sbt-launch.jar at /usr/bin/sbt-launch.jar and are located in the project folder: java $SBT_OPTS -Dfile.encoding=UTF-8 -Xss4M -Xmx1200M -XX:MaxPermSize=512M -XX:NewSize=128M -XX:NewRatio=3 -jar /usr/bin/sbt-launch.jar "$@"
+However, for those who like to experiment, it's now possible to use Simple Build Tool (sbt) to compile and run the GUI to test the program. Example if you have sbt-launch.jar at /usr/bin/sbt-launch.jar and are located in the project folder: java -Dfile.encoding=UTF-8 -Xss4M -Xmx1200M -XX:MaxPermSize=512M -XX:NewSize=128M -XX:NewRatio=3 -jar /usr/bin/sbt-launch.jar "$@"
  
 To make this work you should first clone the repository using git and then put the following jars into a folder lib/:
 collections-generic-4.01.jar  jfreechart-1.0.14.jar      jung-io-2.0.1.jar                         scala-library.jar
@@ -22,5 +22,5 @@ jcommon-1.0.17.jar            jung-graph-impl-2.0.1.jar  scalala_2.9.1-1.0.0.RC3
 
 (some other versions of those will probably work as well...)
 
-Of course eventually a fully working and runnable jar file will be added for the convenience of users.
+Of course eventually (after all the major bugs and performance issues have been fixed) a fully working and runnable jar file will be added for the convenience of users.
 

@@ -158,6 +158,22 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
      b2
    }
  }
+ def equals(other:CellBlockD) : Boolean = {
+   if (bias != other.bias) {
+     false
+   }
+   else {
+     for (i <- 0 until fConns.length) {
+       if (fConns(i) != other.getForward(i)) {
+         false
+       }
+       if (rConns(i) != other.getRecurrent(i)) {
+         false
+       }
+     }
+   }
+   true
+ }
  def makeClone : CellBlockD = {
    val f = new Array[NeuralConnsD](fConns.length)
    val r = new Array[NeuralConnsD](rConns.length)

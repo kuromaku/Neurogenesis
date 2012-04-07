@@ -10,5 +10,6 @@ class SimpleSchedule(p0:Double,p1:Double,max:Long) extends CoolingSchedule {
     step += 1
   }
   def getMax : Long = max
+  //def clone : SimpleSchedule = new SimpleSchedule(p0,p1,max)
   override def toString : String = "SimpleSchedule"
 }

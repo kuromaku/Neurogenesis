@@ -14,5 +14,6 @@ class AdaptiveSchedule(p1:Double,p2:Double,max:Long) extends CoolingSchedule {
   }
 
   def getMax: Long = max
+  //def clone : AdaptiveSchedule = new AdaptiveSchedule(p1,p2,max)
   override def toString : String = "AdaptiveSchedule (p1: "+p1.toString+",p2: "+p2.toString+")"
 }

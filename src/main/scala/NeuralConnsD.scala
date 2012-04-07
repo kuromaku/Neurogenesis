@@ -412,6 +412,9 @@ class NeuralConnsD(min:Int,max:Int) {
 	  }
 	  d
 	}
+	def equals(other:NeuralConnsD) : Boolean = {
+	  isEqualTo(other)
+	}
 	def isEqualTo(nc2:NeuralConnsD) : Boolean = {
 	  val iter = nc2.getConns2
 	  if (nc2.getConns.size != conns.size) {

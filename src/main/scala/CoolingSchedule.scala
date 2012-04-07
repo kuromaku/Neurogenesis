@@ -9,4 +9,5 @@ abstract class CoolingSchedule {
   def getProb2 : Double = flipProb
   def getMax : Long
   def getCurrent: Long = step
+  //override def clone : CoolingSchedule
 }

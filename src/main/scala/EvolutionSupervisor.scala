@@ -33,23 +33,41 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
   def act : Unit = {
     loop {
       react {
-        case UpdateNow(step) => {
-          if (step == 0) {
-            for (i <- 0 until evolvers.length) {
-              evolvers(i)._1.start
-            }
-          }
+        case "Start" => {
           for (i <- 0 until evolvers.length) {
-            if (evolvers(i)._2 < counter && !evolvers(i)._1.isRunning && runningThreads < maxThreads) {
+            evolvers(i)._1.start
+          }
+          var i = 0
+          while (runningThreads < maxThreads && i < evolvers.length) {
+            evolvers(i)._1 ! UpdateNow(counter)
+            runningThreads += 1
+            if (printInfo) {
+              reporter ! ProgressMessage("Number of running threads: "+runningThreads)
+            }
+            i += 1
+          }
+        }
+        case UpdateNow(step) => {
+          //reporter ! ProgressMessage("Supervisor is updating: "+step.toString+"\n")
+          var freeThreads = (runningThreads < maxThreads)
+          var i = 0
+          while (freeThreads && i < evolvers.length) {
+            if (!evolvers(i)._1.isRunning) {
               evolvers(i)._1 ! UpdateNow(counter)
               runningThreads += 1
+              if (runningThreads == maxThreads) {
+                freeThreads = false
+              }
               if (printInfo) {
                 reporter ! ProgressMessage("Number of running threads: "+runningThreads)
               }
             }
+            /*
             if (saveFrequency > 1 && counter % saveFrequency == 0L) {
               evolvers(i)._1 ! Save2File(new File(savePath+saveCounter+"g"+evolvers(i)._2+".xml"))
             }
+            */
+            i += 1
           }
 
         }
@@ -99,7 +117,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
           exitCounter += 1
           if (exitCounter == evolvers.size) {
             if (printInfo) {
-              reporter ! ProgressMessage("Supervisor says Goobye!")
+              reporter ! ProgressMessage("Supervisor says Goodbye!")
             }
             exit
           }
@@ -120,6 +138,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
     e.setID(evolvers.length)
     arr(evolvers.length) = (e,0)
     evolvers = arr
+    e.setPrintInfo(printInfo)
     e.start()
   }
   def getReporter : ProgressReporter = reporter
@@ -131,6 +150,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
     evolvers = evolvers.sortWith(_._2 < _._2) //
     if (evolvers.head._2 == counter) {
       counter += 1
+      //println("Counter: "+counter)
       if (counter == maxGenerations) {
         this ! "Exit"
       }
@@ -174,4 +194,5 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
       e.setPrintInfo(b)
     }
   }
+  def setSavePath(path:String) = savePath = path
 }

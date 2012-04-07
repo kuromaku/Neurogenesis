@@ -17,6 +17,7 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   }
   def getRecurrent : NeuralConnsD = rConns
   def getActivation : Double = activation
+  def getBias : Double = bias
   //def setFitness(f:Double) : Unit = { fitness = f }
   def stimulate(s:Double) : Unit = { stim += s }
   def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double) : OutCellD = {
@@ -33,6 +34,9 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   }
   def makeClone : OutCellD = {
     new OutCellD(bias,rConns.makeClone)
+  }
+  def equals(other:OutCellD) : Boolean = {
+    (bias == other.getBias && rConns == other.getRecurrent)
   }
   override def setFitness(f:Double) : Unit = {
     val c = rConns.calculateComplexity

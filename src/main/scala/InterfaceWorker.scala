@@ -34,4 +34,5 @@ class InterfaceWorker(area:TextArea,lbl:Label,btn:Button) extends Actor {
     }
   }
   def getCount : Int = count
+  def reset : Unit = { count = 0 }
 }

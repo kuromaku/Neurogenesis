@@ -26,7 +26,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var cellPopulation = cellPop
   var netPopulation = netPop
   var actFun: Function1[Double,Double] = new SigmoidExp
-  val distribution:Distribution = new CauchyDistribution(0.05)
+  var distribution:Distribution = new CauchyDistribution(0.05)
   var schedule: CoolingSchedule = new SimpleSchedule(0.05,0.02,50000)
   //val rnd = new Random
   var savePath = "./saves/"
@@ -38,7 +38,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var noImprovementCounter = 0
   var burstMutationFreq = 25
   var spawningFreq = 50
-  val freqIncrement = 20
+  val freqIncrementFactor = 1.15
   var rePopulator:Repopulator[CellPopulationD] = new BasicRepopulator
   var netRepopulator:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
   var mutateNow = false
@@ -52,20 +52,15 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setCellPop(cp2:CellPopulationD) : Unit = { cellPopulation = cp2 }
   def setRepopulator(rp:Repopulator[CellPopulationD]) : Unit = { rePopulator = rp }
   def setNetRepopulator(nrp:NetRepopulator[NetPopulationD,CellPopulationD]) : Unit = { netRepopulator = nrp }
+  def setDistribution(dist2:Distribution) : Unit = { distribution = dist2 }
   def isRunning : Boolean = updatingNow
   
   def act : Unit = {
     loop {
       react {
         case UpdateNow(step) => {
-          /*
-          if (printInfo) {
-            reporter ! ProgressMessage("Evolver id "+myId+" reacting to the command to update to step "+step+".")
-          }
-          */
           updatingNow = true
           //println("Evo"+myId+" Step: "+schedule.getCurrent)
-          //currentStep += 1
           for (i <- 0 until netPopulation.getSize) {
             if (evoMode < 2) {
               val res = netPopulation.getRNN(i).feedData(dataSets.apply(0),actFun)
@@ -154,28 +149,33 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             //evo3.addData(inputData,outputData)
             evo2.addDLists(dataSets)
             evo3.addDLists(dataSets)
-            
+            evo2.setSavePath(savePath)
+            evo2.setSpawningFreq(spawningFreq)
+            evo2.setRepopulator(rePopulator)
+            evo2.setNetRepopulator(netRepopulator)
+            evo2.setSchedule(new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax))
             evo3.setEvoMode(evoMode)
+            evo3.setSavePath(savePath)
+            evo3.setSpawningFreq(spawningFreq)
+            evo3.setRepopulator(rePopulator)
+            evo3.setNetRepopulator(netRepopulator)
+            evo3.setSchedule(new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax))
             supervisor ! BirthMessageD(evo2)
             supervisor ! BirthMessageD(evo3)
             if (printInfo) {
               reporter ! ProgressMessage("Evolver id: "+myId+" spawning new NeuralEvolvers.")
             }
           }
-          /*
-          if (printInfo) {
-           reporter ! ProgressMessage("Evolver id: "+myId+" sending the report to the supervisor.")
-          }
-          */
-          supervisor ! StatusMessage(bestFitness,myId) 
+          
           if (writeNow) {
             write(fileName)
             writeNow = false
           }
-          if (schedule.getCurrent < schedule.getMax) {
-            supervisor ! UpdateNow(schedule.getCurrent)
-          }
-          else {
+          
+          supervisor ! StatusMessage(bestFitness,myId)
+          
+          if (schedule.getCurrent == schedule.getMax) {
+            //supervisor ! UpdateNow(schedule.getCurrent)
             supervisor ! "Exit"
             exit
           }
@@ -225,34 +225,31 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   
 
   def addToBestNets(net:RNND) : Boolean = {
-    if (bestNets(0) == null) {
-      bestNets(0) = net
-      true
-    }
-    else {
-      var emptySlot = false
-      var idx = 1
-      while (!emptySlot && idx < bestNets.length) {
-        if (bestNets(idx) == null) {
-          emptySlot = true
-          bestNets(idx) = net
-        }
-        else {
-          idx += 1
-        }
-      }
-      if (!emptySlot) {
-        bestNets = bestNets.sortWith(_.getFitness < _.getFitness)
-        if (bestNets(0).getFitness < net.getFitness) {
-          bestNets(0) = net
-          true
-        }
-        else {
-          false
+    var emptySlot = false
+    var emptyIdx = 0
+    for (i <- 0 until bestNets.length) {
+      if (bestNets(i) != null) {
+        if (bestNets(i).getFitness == net.getFitness) {
+          return false
         }
       }
       else {
+        emptySlot = true
+        emptyIdx = i
+      }
+    }
+    if (emptySlot) {
+      bestNets(emptyIdx) = net
+      true
+    }
+    else {
+      bestNets = bestNets.sortWith(_.getFitness < _.getFitness)
+      if (bestNets(0).getFitness < net.getFitness) {
+        bestNets(0) = net
         true
+      }
+      else {
+        false
       }
     }
   }
@@ -307,6 +304,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setActFun(actFun2:Function1[Double,Double]) : Unit = { actFun = actFun2 }
   def setBurstFreq(freq:Int) : Unit = { burstMutationFreq = freq }
   def setPrintInfo(b:Boolean) : Unit = { printInfo = b }
+  def setSpawningFreq(freq:Int) : Unit = { spawningFreq = freq }
   //def setMutationProb(d:Double) : Unit = { mutProb0 = d }
   //def setFlipProb(d:Double) : Unit = { flipProb0 = d }
   def setEvoMode(m:Int) : Unit = { evoMode = m }
@@ -315,7 +313,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     
     val b = (schedule.getCurrent % spawningFreq.toLong) == 0L
     if (b) {
-      spawningFreq += freqIncrement
+      spawningFreq = (spawningFreq*freqIncrementFactor).toInt
     }
     b
   }
@@ -396,6 +394,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setSchedule(cs:CoolingSchedule) : Unit = {
     schedule = cs
   }
+  def setSavePath(path:String) : Unit = { savePath = path }
   def getSimpleRepresentation : String = {
     val rep = new StringBuilder("NeuralEvolver:\n")
     rep.append("Learning Mode: "+evoMode+"\n")

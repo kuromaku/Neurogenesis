@@ -57,7 +57,11 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     val e = <InCellD>{fwd}{rec}</InCellD>
     e
   }
+
   
+  override def toString : String = "<InCellD><Forward>"+fConns+"</Forward><Recurrent>\n"+rConns+"</Recurrent></InCellD>"
+}
+object InCellD {
   def fromXML(elem:Elem) : InCellD = {
     val fwd = elem \\ "Forward"
     val rec = elem \\ "Recurrent"
@@ -73,6 +77,10 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     }
     new InCellD(fc,rc)
   }
-  
-  override def toString : String = "<InCellD><Forward>"+fConns+"</Forward><Recurrent>\n"+rConns+"</Recurrent></InCellD>"
+  def fromXML(ns:NodeSeq) : InCellD = {
+    val fwd = ns \\ "Forward"
+    val fc = NeuralConnsD.fromXML(fwd)
+    val rc = NeuralConnsD.fromXML(ns \\ "Recurrent")
+    new InCellD(fc,rc)
+  }
 }

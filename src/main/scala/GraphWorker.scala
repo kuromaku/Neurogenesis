@@ -1,11 +1,12 @@
 package neurogenesis.util
-import neurogenesis.msg._
+import neurogenesis.msg.AnotherRNN
 
 import scala.actors.Actor
 import edu.uci.ics.jung.algorithms.layout.FRLayout
 import edu.uci.ics.jung.algorithms.layout.KKLayout
 import edu.uci.ics.jung.algorithms.layout.ISOMLayout
 import edu.uci.ics.jung.visualization.VisualizationImageServer
+import edu.uci.ics.jung.visualization.VisualizationViewer
 import edu.uci.ics.jung.visualization.BasicVisualizationServer
 import edu.uci.ics.jung.visualization.decorators.ToStringLabeller
 import edu.uci.ics.jung.visualization.renderers.Renderer.VertexLabel.Position
@@ -39,7 +40,7 @@ class GraphWorker(method:String) extends Actor {
           displayPanel.setBorder(new EtchedBorder)
           displayPanel.setPreferredSize(new Dimension(640,480))
           */
-          val vServer = new BasicVisualizationServer[Int,String](graph2Layout(graphRep))
+          val vServer = new VisualizationViewer[Int,String](graph2Layout(graphRep))
           vServer.getRenderContext.setVertexLabelTransformer(new ToStringLabeller)
           vServer.getRenderContext.setEdgeLabelTransformer(new ToStringLabeller)
           vServer.getRenderer.getVertexLabelRenderer.setPosition(Position.CNTR)
@@ -56,7 +57,7 @@ class GraphWorker(method:String) extends Actor {
     var lOut:AbstractLayout[Int,String] = new FRLayout(fGraph)
     layoutMethod match {
       case "FR" => {
-        lOut = new FRLayout(g)
+        Unit
       }
       case "ISOM" => {
         lOut = new ISOMLayout(g)

@@ -12,6 +12,9 @@ import java.io.FileInputStream
 import java.io.FileWriter
 import scala.xml._
 import scalala.library.Storage
+import java.util.zip.Deflater
+import java.util.zip.DeflaterOutputStream
+import java.util.zip.InflaterInputStream
 
 class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter,rnd:Random) extends Actor {
   var proceed = true
@@ -21,8 +24,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var valInput = List[Array[Double]]()
   var valTarget = List[Array[Double]]()
   */
-  var dataSets = List[List[Array[Double]]]() // 0 training inputs 1 training targets 2 validation inputs 3 validation targets...
-  
+  var dataSets = List[List[Array[Double]]]() // 0 training inputs, 1 training targets, 2 validation inputs, 3 validation targets...
+  var useCompression = true
   var cellPopulation = cellPop
   var netPopulation = netPop
   var actFun: Function1[Double,Double] = new SigmoidExp
@@ -47,6 +50,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var writeNow = false
   var evoMode = 0 //which mode to use?
   var fileName = new File("")
+  def getCellPop : CellPopulationD = cellPopulation
+  def getNetPop : NetPopulationD = netPopulation
   def setID(nid:Int) : Unit = { myId = nid }
   def setNetPop(np2:NetPopulationD) : Unit = { netPopulation = np2 }
   def setCellPop(cp2:CellPopulationD) : Unit = { cellPopulation = cp2 }
@@ -187,25 +192,24 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           writeNow = true
           reporter ! ProgressMessage("Will try writing an XML representation of NeuralEvolver "+myId+" to a file "+f.getPath+" after next step")
         }
-        case "Exit" => {
+        case MakeExit(saveOnExit) => {
           if (printInfo) {
             reporter ! ProgressMessage("Terminating NeuralEvolver "+myId+".")
           }
-          val saveDir = new File(savePath)
-          if (!saveDir.exists()) {
-            saveDir.mkdir()
+          if (saveOnExit) {
+            val saveDir = new File(savePath)
+            if (!saveDir.exists()) {
+              saveDir.mkdir()
+            }
+            val s0 = lastBestFitness.toString
+            val fstring = if (s0.length > 6) s0.substring(0,6) else { s0 }
+            val fileName = new File(savePath+"/evolver_g"+schedule.getCurrent+"id"+myId+"f"+fstring+".txt")
+            if (!fileName.exists) {
+              saveEvolver(fileName)
+            }
+            supervisor ! "Exiting"
+            exit()
           }
-          /*
-          if (schedule.getCurrent > 1000) {
-            saveBestNet(new File(savePath+"rnn"+schedule.getCurrent+"id"+myId+"blocks"+cellPopulation.getBlocks+"memCells"+cellPopulation.blockPop(0)(0).getNumOfCells+".xml"))
-          }
-          */
-          val fileName = new File(savePath+"evolver_g"+schedule.getCurrent+"id"+myId+".txt")
-          if (!fileName.exists) {
-            saveEvolver(fileName)
-          }
-          supervisor ! "Exiting"
-          exit()
         }
       }
     }
@@ -375,12 +379,46 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     }
   }
   def saveEvolver(f:File) : Unit = {
-    val fw = new FileWriter(f)
-    val xml = toXML
-    scala.xml.XML.write(fw,xml.head,"UTF-8",false,null)
-    xml.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
-    fw.close
+    if (useCompression) {
+      val f2 = new File(f.getPath+".zip")
+      val xmls = toXML.toString.getBytes
+      val compressor = new DeflaterOutputStream(new FileOutputStream(f2))//Deflater
+      val l = xmls.length
+      var i = 0
+      while (i < l) {
+        compressor.write(xmls(i))
+        i += 1
+      }
+      compressor.close
+      //compressor.setInput(xmls)
+      //compressor.finish()
+      
+    }
+    else {
+      val fw = new FileWriter(f)
+      val xml = toXML
+      scala.xml.XML.write(fw,xml.head,"UTF-8",false,null)
+      xml.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
+      fw.close
+    }
+
   }
+  /*
+  def restoreEvolver(f:File) : Unit = {
+    val inflater = new InflaterInputStream(new FileInputStream(f))
+    var lb = List[Byte]()
+    val bl = 100
+    var buffer = new Array[Byte](bl)
+    while (inflater.available == 1) {
+      val r = inflater.read(buffer,0,bl)
+      for (i <- 0 until r) {
+        lb = lb.+:(buffer(i))
+      }
+    }
+    val s = new java.lang.String(lb.reverse.toArray)
+    println(s.substring(0,40))
+  }
+  */
   def parametersToString : String = {
     val s = "<Parameters><MutProb>"+schedule.getProb1+"</MutProb><FlipProb>"+schedule.getProb2+"</FlipProb></Parameters>"
     s
@@ -406,11 +444,31 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     rep.toString
   }
   def toXML : Elem = {
-    <NeuralEvolver><Fitness>{lastBestFitness}</Fitness>{cellPopulation.toXML}{netPopulation.toXML}</NeuralEvolver>
-    /*
+    if (bestNetsReady) {
+      val reps = new Array[Elem](bestNets.length)
+      for (i <- 0 until reps.length) {
+        reps(i) = bestNets(i).toXML
+      }
+      //val bnXML = <BestNets>{for (i <- 0 until bestNets.length) yield reps(i) }</BestNets>
+      <NeuralEvolver><Fitness>{lastBestFitness}</Fitness><BestNets>{for (i <- 0 until bestNets.length) yield reps(i) }</BestNets>{cellPopulation.toXML}{netPopulation.toXML}</NeuralEvolver>
+    }
+    else {
+      <NeuralEvolver><Fitness>{lastBestFitness}</Fitness>{cellPopulation.toXML}{netPopulation.toXML}</NeuralEvolver>
+    }
+      /*
     val pop1xml = cellPopulation.toXML
     val pop2xml = netPopulation.toXML
     <NeuralEvolver>{pop1xml}{pop2xml}</NeuralEvolver>
     */
   }
+  def restoreBestNets(e:NodeSeq) : Unit = {
+    val n = e \\ "RNND"
+    bestNets = new Array[RNND](n.length)
+    var idx = 0
+    for (net <- n) {
+      bestNets(idx) = RNND.fromXML(net)
+      idx += 1
+    }
+  }
+
 }

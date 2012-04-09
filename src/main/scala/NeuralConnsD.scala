@@ -9,6 +9,8 @@ import scala.util.Random
 import scala.collection.Map
 import scala.collection.Set
 import scala.xml.Elem
+import scala.xml.NodeSeq
+import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
 class NeuralConnsD(min:Int,max:Int) {
   //type T = Double
@@ -17,9 +19,9 @@ class NeuralConnsD(min:Int,max:Int) {
 	var conns:Map[Int,(Double,Boolean)] = new TreeMap[Int,(Double,Boolean)]()(Ordering.Int)
 	def getConns : Map[Int,Double] = {
 	  var tmap = Map[Int,Double]() //(conns
-	  for (c <- conns) {
-	    if (c._2._2) {
-	      tmap = tmap + ((c._1,c._2._1))
+	  for ((d,(w,b)) <- conns) {
+	    if (b) {
+	      tmap = tmap + ((d,w))
 	    }
 	  }
 	  tmap
@@ -33,8 +35,8 @@ class NeuralConnsD(min:Int,max:Int) {
 	    false
 	  }
 	  else {
-	    val maxVal = 5.0
-	    if (Math.abs(weight) < maxVal) {
+	    val maxVal = 3.0
+	    if (scala.math.abs(weight) < maxVal) {
 	      conns = conns + ((dest,(weight,true)))
 	    }
 	    else {
@@ -54,7 +56,7 @@ class NeuralConnsD(min:Int,max:Int) {
 	  }
 	  else {
 	    val maxVal = 3.0
-	    if (Math.abs(weight) > maxVal) {
+	    if (scala.math.abs(weight) > maxVal) {
 	      if (weight < 0) {
 	        conns = conns + ((dest,(-maxVal,expr)))
 	      }
@@ -72,7 +74,7 @@ class NeuralConnsD(min:Int,max:Int) {
 	}
 	def addRandomConnection(rnd:Random) : Boolean = {
 		val dest = rnd.nextInt(maxNode-minNode)+minNode
-		val weight = Math.random-0.5
+		val weight = scala.math.random-0.5
 		return addConnection(dest,weight)
 	}
 	def addRandomConnections(num:Int,rnd:Random) : Int = {
@@ -85,7 +87,7 @@ class NeuralConnsD(min:Int,max:Int) {
 	  sum
 	}
 	def addMutatedConnection(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution) : Boolean = {
-		if (Math.random < flipP) {
+		if (scala.math.random < flipP) {
 		  addConnection(d,w+dist.inverse(Math.random),!expr)
 		}
 		else {
@@ -93,7 +95,7 @@ class NeuralConnsD(min:Int,max:Int) {
 		}
 	}
 	def addMutatedConnection(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution,rnd:Random) : Boolean = {
-		if (Math.random < flipP) {
+		if (scala.math.random < flipP) {
 		  addConnection(d,w+dist.inverse(rnd.nextDouble),!expr)
 		}
 		else {
@@ -134,10 +136,10 @@ class NeuralConnsD(min:Int,max:Int) {
 	def burstMutate2(prob:Double,flipP:Double,dist:Distribution) : NeuralConnsD = {
 	  var nc = new NeuralConnsD(minNode,maxNode)
 	  for (conn <- conns) {
-	    if (Math.random < prob)
+	    if (scala.math.random < prob)
 	      nc.addMutatedConnection(conn._1,conn._2._1,conn._2._2,flipP,dist)
 	    else {
-	      if (Math.random < flipP) {
+	      if (scala.math.random < flipP) {
 	        nc.addConnection(conn._1,conn._2._1,!conn._2._2)
 	      }
 	      else {
@@ -240,13 +242,14 @@ class NeuralConnsD(min:Int,max:Int) {
 			
 		}
 		while (iter2.hasNext) {
-				node = iter2.next
-				nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  node = iter2.next
+		  nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
 		}
 		nc
 	}
-    def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : NeuralConnsD = {
+    def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:Random,discardRate:Double = 0.75) : NeuralConnsD = {
 		var nc = new NeuralConnsD(minNode,maxNode)
+		//val discardRate = 0.5
 		val iter1 = conns.iterator
 		val iter2 = nc2.getConns2
 		var node = (0,(0.0,true))
@@ -263,7 +266,9 @@ class NeuralConnsD(min:Int,max:Int) {
 		  val k = c._1
 		  if (node2ready) {
 			  if (k < node._1) {
-			    nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+			    if (rnd.nextDouble > discardRate) {
+			      nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+			    }
 			  }
 			  else if (k == node._2._1) {
 			    if (Math.random < 0.5) {
@@ -275,7 +280,9 @@ class NeuralConnsD(min:Int,max:Int) {
 			    node2ready = false
 			  }
 			  else {
-			    nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist,rnd)
+			    if (rnd.nextDouble > discardRate) {
+			      nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist,rnd)
+			    }
 			    node2ready = false
 			    node1ready = true
 			    node = c
@@ -288,7 +295,9 @@ class NeuralConnsD(min:Int,max:Int) {
 				while (lower && iter2.hasNext) {
 					val c2 = iter2.next
 					if (c2._1 < k) {
-						nc.addMutatedConnection(c2._1,c2._2._1,c2._2._2,flipP,dist,rnd)
+					  if (rnd.nextDouble > discardRate) {
+					    nc.addMutatedConnection(c2._1,c2._2._1,c2._2._2,flipP,dist,rnd)
+					  }
 					}
 					else if (c2._1 == k) {
 						if (Math.random < 0.5) {
@@ -303,7 +312,9 @@ class NeuralConnsD(min:Int,max:Int) {
 					}
 					else {
 						lower = false
-						nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+						if (rnd.nextDouble > discardRate) {
+						  nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+						}
 						node = c2
 						node2ready = true
 						node1ready = false
@@ -315,23 +326,31 @@ class NeuralConnsD(min:Int,max:Int) {
 				  nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist)
 				  while (iter1.hasNext && !node2ready) {
 				    c = iter1.next
-				    nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+				    if (rnd.nextDouble > discardRate) {
+				      nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+				    }
 				  }
 				}
 				else if (node1ready) {
-				  nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+				  if (rnd.nextDouble > discardRate) {
+				    nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+				  }
 				  node1ready = false
 				}
 				
 			}
 		}
 		if (node2ready || node1ready) {
-		  nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  if (rnd.nextDouble > discardRate) {
+		    nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  }
 			
 		}
 		while (iter2.hasNext) {
-				node = iter2.next
-				nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  node = iter2.next
+		  if (rnd.nextDouble > discardRate) {
+		    nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  }
 		}
 		//Let's add or remove a random connection every once in a while
 		while (rnd.nextDouble < mutP) {
@@ -392,7 +411,13 @@ class NeuralConnsD(min:Int,max:Int) {
 	  for (c <- conns) {
 	    sum += c._2._1*c._2._1
 	  }
-	  return size/sum
+	  val mod = scala.math.log(size)
+	  if (mod >= 1) {
+	    sum/mod
+	  }
+	  else {
+	    sum
+	  }
 	}
 	def dist(nc2:NeuralConnsD) : Double = {
 	  var d = 0.0
@@ -461,20 +486,33 @@ class NeuralConnsD(min:Int,max:Int) {
 	/*Sometimes the IDE seems to have trouble with this code
 	 * 
 	 */
-	def fromXML(elem:Elem) : NeuralConnsD = {
-	  val minVal = (elem \\ "Min").text.toInt
-	  val maxVal = (elem \\ "Max").text.toInt
-	  val nc = new NeuralConnsD(minVal,maxVal)
-	  elem match {
-	    case <NeuralConnsD>{therms @ _*}</NeuralConnsD> => {
-	      for (therm @ <cnn>{_*}</cnn> <- therms) {
-	        val d = (therm \ "dest").text.toInt
-	        val w = (therm \ "w").text.toDouble
-	        val b = (therm \ "expr").text.toBoolean
-	        nc.addConnection(d,w,b)
-	      }
+
+}
+object NeuralConnsD {
+  def fromXML(elem:Elem) : NeuralConnsD = {
+    val minVal = (elem \\ "Min").text.toInt
+	val maxVal = (elem \\ "Max").text.toInt
+	val nc = new NeuralConnsD(minVal,maxVal)
+	elem match {
+	  case <NeuralConnsD>{therms @ _*}</NeuralConnsD> => {
+	    for (therm @ <cnn>{_*}</cnn> <- therms) {
+	      val d = (therm \ "dest").text.toInt
+	      val w = (therm \ "w").text.toDouble
+	      val b = (therm \ "expr").text.toBoolean
+	      nc.addConnection(d,w,b)
 	    }
-	  }
-	  nc
-	}
+      }
+    }
+    nc
+  }
+  def fromXML(ns:NodeSeq) : NeuralConnsD = {
+    val mv = (ns \\ "Min").text.toInt
+    val mv2 = (ns \\ "Max").text.toInt
+    val nc = new NeuralConnsD(mv,mv2)
+    val cnns = XMLOperator.filterNodeSeq(ns)
+    for (c <- cnns) {
+      nc.addConnection((c \ "dest").text.toInt,(c \ "w").text.toDouble,(c \ "expr").text.toBoolean)
+    }
+    nc
+  }
 }

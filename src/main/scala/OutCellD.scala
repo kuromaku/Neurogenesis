@@ -2,7 +2,8 @@ package neurogenesis.doubleprecision
 
 import neurogenesis.util.XMLOperator
 import scala.util.Random
-import scala.xml._
+import scala.xml.Elem
+import scala.xml.NodeSeq
 import neurogenesis.util.Distribution
 class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   var stim: Double = 0
@@ -51,19 +52,27 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
       }
     }
   }
-  /*Constructs an XML representation of this OutCellT
+  /*Constructs an XML representation of this OutCellD
    * 
    */
   def toXML : Elem = {
     val b = <Bias>{bias}</Bias>
-    val e = <OutCellT>{b}{rConns.toXML}</OutCellT>
+    val e = <OutCellD>{b}{rConns.toXML}</OutCellD>
     e
   }
+
+  override def toString : String = "<OutCellD>"+rConns+"\n</OutCellD>"
+}
+object OutCellD {
   def fromXML(e:Elem) : OutCellD = {
     val bs = (e \\ "Bias").text.toDouble
     val cxml = (e \\ "NeuralConnsD")
-    val nc = new NeuralConnsD(0,0)
-    new OutCellD(bs,nc.fromXML(XMLOperator.toElem(cxml)))
+    val nc = NeuralConnsD.fromXML(cxml)
+    new OutCellD(bs,nc)
   }
-  override def toString : String = "<OutCellT>"+rConns+"\n</OutCellT>"
+  def fromXML(ns:NodeSeq) : OutCellD = {
+    val bs = (ns \\ "Bias").text.toDouble
+    val rc = (ns \\ "NeuralConnsD")
+    new OutCellD(bs,NeuralConnsD.fromXML(rc))
+  }
 }

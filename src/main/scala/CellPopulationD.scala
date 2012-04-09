@@ -68,6 +68,17 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
     }
   }
+  def zeroInit : Unit = {
+    for (i <- 0 until inputs) {
+      inputPop(i) = new Array[InCellD](popSize)
+    }
+    for (i <- 0 until blocks) {
+      blockPop(i) = new Array[CellBlockD](popSize)
+    }
+    for (i <- 0 until outputs) {
+      outputPop(i) = new Array[OutCellD](popSize)
+    }
+  }
   def getRNN(rnd:Random) : RNND = {
     val ic = new Array[InCellD](inputs)
     for (i <- 0.until(inputs)) {
@@ -140,6 +151,29 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         outputPop(j)(i) = outputPop(j)(popSize-idx).burstMutate(burstProb,dist,rnd)
       }
     }
+  }
+  def burstMutate2(burstProb:Double,dist:Distribution,rnd:Random) : CellPopulationD = {
+    val cp2 = new CellPopulationD(inputs,blocks,outputs,popSize)
+    val inputPop2 = new Array[Array[InCellD]](inputs)
+    val blockPop2 = new Array[Array[CellBlockD]](blocks)
+    val outputPop2 = new Array[Array[OutCellD]](outputs)
+    for (i <- 0 until inputs) { inputPop2(i) = new Array[InCellD](popSize) }
+    for (i <- 0 until blocks) { blockPop2(i) = new Array[CellBlockD](popSize) }
+    for (i <- 0 until outputs) { outputPop2(i) = new Array[OutCellD](popSize) }
+    for (i <- 0 until popSize) {
+      for (j <- 0 until inputs) {
+        inputPop2(j)(i) = inputPop(j)(i).burstMutate(burstProb,dist,rnd)
+      }
+      for (j <- 0 until blocks) {
+        blockPop2(j)(i) = blockPop(j)(i).burstMutate(burstProb,dist,rnd)
+      }
+      for (j <- 0 until outputs) {
+        val idx = rnd.nextInt(3)+1
+        outputPop2(j)(i) = outputPop(j)(i).burstMutate(burstProb,dist,rnd)
+      }
+    }
+    cp2.replaceCells(inputPop2,blockPop2,outputPop2)
+    cp2
   }
   def complexify(addBlock:Boolean,rnd:Random) : CellPopulationD = {
     if (addBlock) {
@@ -492,9 +526,10 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     val ip = new Elem(null,"InputPopulation",null,tscope,inpopElems: _*)
     val cp = new Elem(null,"BlockPopulation",null,tscope,blockElems: _*)
     val op = new Elem(null,"OutputPopulation",null,tscope,outpopElems: _*)
-    val xml = <CellPopulation>{ip}{cp}{op}</CellPopulation>
+    val xml = <CellPopulation><Inputs>{inputs}</Inputs><Blocks>{blocks}</Blocks><Outputs>{outputs}</Outputs><SubpopSize>{popSize}</SubpopSize>{ip}{cp}{op}</CellPopulation>
     xml
   }
+
   def countEquals : Int = {
     var eCount = 0
     for (i <- 0 until (popSize-1)) {
@@ -525,4 +560,73 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   }
   */
   //def readPopulation(popString:File) : CellPopulation =
+}
+object CellPopulationD {
+  def fromXML(ns:NodeSeq) : CellPopulationD = {
+    val ip = ns \\ "InputPopulation"
+    val inputs2 = (ns \\ "Inputs").text.toInt
+    val blocks2 = (ns \\ "Blocks").text.toInt
+    val outputs2 = (ns \\ "Outputs").text.toInt
+    val subpop = (ns \\ "SubpopSize").text.toInt
+    //println("OutputNum:"+outputs2)
+    //println("SubpopSize:"+subpop)
+    //val il = XMLOperator.customFilter(ip,"InCellD")
+    val il = ip \\ "InCellD"
+    val xmlPop = new CellPopulationD(inputs2,blocks2,outputs2,subpop)
+    val inPop = new Array[Array[InCellD]](inputs2)
+    var i = 0
+    var j = 0
+    inPop(0) = new Array[InCellD](subpop)
+    for (ic <- il) {
+      inPop(i)(j) = InCellD.fromXML(ic)
+      //println(inPop(i)(j).toXML.toString)
+      j += 1
+      if (j == subpop) {
+        i += 1
+        j = 0
+        if (i < inputs2) {
+          inPop(i) = new Array[InCellD](subpop)
+        }
+      }
+      
+    }
+    val bp = (ns \\ "BlockPopulation") \\ "CellBlockD"
+    i = 0
+    j = 0
+    val blPop = new Array[Array[CellBlockD]](blocks2)
+    blPop(0) = new Array[CellBlockD](subpop)
+    for (b <- bp) {
+      blPop(i)(j) = CellBlockD.fromXML(b)
+      j +=1
+      if (j == subpop) {
+        i += 1
+        j = 0
+        if (i < blocks2) {
+          blPop(i) = new Array[CellBlockD](subpop)
+        }
+      }
+    }
+    val op = (ns \\ "OutputPopulation") \\ "OutCellD"
+    i = 0
+    j = 0
+    val opPop = new Array[Array[OutCellD]](outputs2)
+    opPop(0) = new Array[OutCellD](subpop)
+    for (o <- op) {
+      opPop(i)(j) = OutCellD.fromXML(o)
+      //println("i:"+i+" j:"+j+"\n"+opPop(i)(j).toXML)
+      j += 1
+      if (j == subpop) {
+        i += 1
+        j = 0
+        if (i < outputs2) {
+          opPop(i) = new Array[OutCellD](subpop)
+        }
+      }
+    }
+    val cp = new CellPopulationD(inputs2,blocks2,outputs2,subpop)
+    cp.zeroInit
+    cp.replaceCells(inPop,blPop,opPop)
+    //println(cp.toXML)
+    cp
+  }
 }

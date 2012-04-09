@@ -12,7 +12,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  for (i <- 0 until 3) gateBits(i) = true
  val bias = b
  val numCells = memState.length
- //Todo: make it possible to disable the effect of gates
+ //Recent addition was the ability to disable the effect of gates
  def activate : Array[Double] = {
    val actv = new Array[Double](numCells)
    for (i <- 0.to(numCells-1)) {
@@ -246,7 +246,24 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    val e = <CellBlockD>{bs}{num}{gateBits}<Forward>{for (i <- 0 until fConns.length) yield f(i)}</Forward><Recurrent>{for (i <- 0 until fConns.length) yield r(i)}</Recurrent></CellBlockD>
    e
  }
- def fromXML(e:Elem) : CellBlockD = {
+
+ def setBits(n:Int) : Unit = {
+   var t = n
+   if (t >= 4) {
+     gateBits(0) = true
+     t -= 4
+   }
+   if (t >= 2) {
+     gateBits(1) = true
+     t -= 2
+   }
+   if (t == 1) {
+     gateBits(2) = true
+   }
+ }
+}
+object CellBlockD {
+  def fromXML(e:Elem) : CellBlockD = {
    val num = (e \\ "MemCells").text.toInt
    val rbias = (e \\ "Bias").text.toDouble
    val fwd = (e \\ "Forward")
@@ -281,18 +298,39 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    c2.setBits(bitRep)
    return c2
  }
- def setBits(n:Int) : Unit = {
-   var t = n
-   if (t >= 4) {
-     gateBits(0) = true
-     t -= 4
+  def fromXML(e:NodeSeq) : CellBlockD = {
+   val num = (e \\ "MemCells").text.toInt
+   val rbias = (e \\ "Bias").text.toDouble
+   val fwd = (e \\ "Forward")
+   val rec = (e \\ "Recurrent")
+   val f = new Array[NeuralConnsD](num)
+   val r = new Array[NeuralConnsD](num)
+   val minF = (fwd \\ "Min").apply(0).text.toInt
+   val maxF = (fwd \\ "Max").apply(0).text.toInt
+   val minR = (rec \\ "Min").apply(0).text.toInt
+   val maxR = (rec \\ "Max").apply(0).text.toInt
+   val bitRep = (e \\ "GateBits").text.toInt
+   val op = XMLOperator
+   var idx = 0
+   
+   for (i <- 0 until num) {
+     val sf = "f"+i
+     val sr = "r"+i
+     f(i) = new NeuralConnsD(minF,maxF)
+     r(i) = new NeuralConnsD(minR,maxR)
+     val fi = (fwd \\ sf)
+     val ri = (rec \\ sr)
+     val seq = op.filterNodeSeq(fi)
+     for (s <- seq) {
+       f(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
+     }
+     val seq2 = op.filterNodeSeq(ri)
+     for (s <- seq2) {
+       r(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
+     }
    }
-   if (t >= 2) {
-     gateBits(1) = true
-     t -= 2
-   }
-   if (t == 1) {
-     gateBits(2) = true
-   }
+   val c2 = new CellBlockD(rbias,f,r)
+   c2.setBits(bitRep)
+   return c2
  }
 }

@@ -11,7 +11,7 @@ import java.io.File
 //import scala.collection.mutable.LinkedList
 import scala.collection.mutable.ArrayOps
 
-class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Actor {
+class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExiting:Boolean=false) extends Actor {
   var maxThreads = numThreads
   var runningThreads = 0
   var evolvers = new Array[(NeuralEvolver,Int)](numThreads)
@@ -29,7 +29,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
   var saveFrequency = 5000L
   var savePath = "./saves/"
   var exitCounter = 0
-  
+  var saveOnExit = saveWhenExiting
   def act : Unit = {
     loop {
       react {
@@ -109,7 +109,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
         
         case "Exit" => {
           for (e <- evolvers) {
-            e._1 ! "Exit"
+            e._1 ! MakeExit(saveOnExit)
           }
           reporter ! "Exit"
         }
@@ -157,7 +157,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
     }
   }
   def reset : Unit = {
-    
+    evolvers = new Array[(NeuralEvolver,Int)](numThreads)
   }
   def getSuperStar : RNND = {
     var found = false
@@ -194,5 +194,6 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int) extends Ac
       e.setPrintInfo(b)
     }
   }
+  def setSaveOnExit(b:Boolean) : Unit = { saveOnExit = b }
   def setSavePath(path:String) = savePath = path
 }

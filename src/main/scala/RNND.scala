@@ -2,6 +2,7 @@ package neurogenesis.doubleprecision
 
 import scala.util.Random
 import scala.xml.Elem
+import scala.xml.NodeSeq
 import scala.xml.TopScope
 import scalala.tensor.dense.DenseMatrix
 import scalala.tensor.mutable.Matrix
@@ -23,18 +24,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   def activate(inputs:Array[Double],actFun:Function1[Double,Double]) : Array[Double] = {
 	  val res = new Array[Double](outputLayer.size)
 	  //recurrent stimulations based on activations from the previous step
-	  for (i <- 0.until(inputs.length)) {
-	    stimulate(inputLayer(i).getActivation,inputLayer(i).getRecurrent)
-	  }
-	  for (i <- 0.until(numBlocks)) {
-		val acts = cellBlocks(i).activate
-		for (j <- 0.until(acts.length)) {
-		  stimulate(acts(j),cellBlocks(i).getRecurrent(j))
-		}
-	  }
-	  for (i <- 0.until(out)) {
-		stimulate(outputLayer(i).getActivation,outputLayer(i).getRecurrent)
-	  }
+	  recStim
 	  //forward connections next
 	  val actInput = new Array[Double](inputs.length)
 	  for (i <- 0.until(inputs.length)) {
@@ -260,6 +250,27 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       }
     }
   }
+  //TODO: Test which way to add stims is faster
+  def stimulate2(actVal:Double,iter:Iterator[(Int,(Double,Boolean))]) : Unit = {
+    while (iter.hasNext) {
+      val (dest,(w,b)) = iter.next
+      if (dest < in) {
+        if (b) inputLayer(dest).stimulate(w*actVal)
+      }
+      else if (dest < midPoint) {
+        if (b) {
+          val aux = dest - in
+          val numG = aux % memGates
+          val numB:Int = aux / memGates
+          cellBlocks(numB).stimulate(w*actVal,numG)
+        }
+      }
+      else {
+        if (b) outputLayer(dest-midPoint).stimulate(w*actVal)
+      }
+    }
+  }
+
   def reset : Unit = {
     //firstInput = true
     for (b <- cellBlocks) {
@@ -294,21 +305,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val res = <RNND>{ip}{bp}{op}</RNND>
     res
   }
-  def fromXML(e:Elem) : Unit = {
-    val ilElem = e \\ "InputLayer"
-    val blElem = e \\ "BlockLayer"
-    val olElem = e \\ "OutputLayer"
-    val inputs = XMLOperator.customFilter(ilElem,"InCellD")
-    val blocks = XMLOperator.customFilter(blElem,"CellBlockD")
-    val outputs = XMLOperator.customFilter(olElem,"OutCellD")
-    val in = new Array[InCellD](inputs.size)
-    var idx = 0
-    for (i <- inputs) {
-      in(idx) = NeuralOps.fromXML(i)
-      println(in(idx).toXML)
-      idx += 1
-    }
-  }
+
+  
   // SparseGraph[_ >: Nothing,_ >: Nothing]
   def toGraph :  SparseGraph[Int,String] = {
     val graph = new SparseGraph[Int,String]()
@@ -417,5 +415,51 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       r(i) = outputLayer(i-midPoint).activation
     }
     r
+  }
+}
+object RNND {
+  /*
+  def fromXML(e:Elem) : Unit = {
+    val ilElem = e \\ "InputLayer"
+    val blElem = e \\ "BlockLayer"
+    val olElem = e \\ "OutputLayer"
+    val inputs = XMLOperator.customFilter(ilElem,"InCellD")
+    val blocks = XMLOperator.customFilter(blElem,"CellBlockD")
+    val outputs = XMLOperator.customFilter(olElem,"OutCellD")
+    val in = new Array[InCellD](inputs.size)
+    var idx = 0
+    for (i <- inputs) {
+      in(idx) = NeuralOps.fromXML(i)
+      println(in(idx).toXML)
+      idx += 1
+    }
+  }
+  */
+  def fromXML(e:NodeSeq) : RNND = {
+    val ilElem = e \\ "InputLayer"
+    val blElem = e \\ "BlockLayer"
+    val olElem = e \\ "OutputLayer"
+    val inputs = ilElem \\ "InCellD"
+    val blocks = blElem \\ "CellBlockD"
+    val outputs = olElem \\ "OutCellD"
+    val in = new Array[InCellD](inputs.size)
+    var idx = 0
+    for (i <- inputs) {
+      in(idx) = InCellD.fromXML(i)
+      idx += 1
+    }
+    val bl = new Array[CellBlockD](blocks.size)
+    idx = 0
+    for (b <- blocks) {
+      bl(idx) = CellBlockD.fromXML(b)
+      idx += 1
+    }
+    val ol = new Array[OutCellD](outputs.size)
+    idx = 0
+    for (o <- outputs) {
+      ol(idx) = OutCellD.fromXML(o)
+      idx += 1
+    }
+    new RNND(in,bl,ol)
   }
 }

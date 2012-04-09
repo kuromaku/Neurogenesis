@@ -1,8 +1,10 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util.Distribution
+import neurogenesis.util.CauchyDistribution
 import scala.util.Random
 import scala.xml.Elem
 import scala.xml.TopScope
+import scala.xml.NodeSeq
 
 class NetPopulationD(cPop:CellPopulationD) {
   var netPop = new Array[RNND](cPop.getSize*2)
@@ -25,6 +27,21 @@ class NetPopulationD(cPop:CellPopulationD) {
     for (i <- cPop.getSize until netPop.length) {
       netPop(i) = n2(i-cPop.getSize)
     }
+  }
+  def init(n:Array[RNND]) : Unit = {
+    netPop = n
+  }
+  def burstMutate : NetPopulationD = {
+    val cauchy = new CauchyDistribution(0.005)
+    val rnd0 = new Random
+    val np = new Array[RNND](netPop.length)
+    for (i <- 0 until netPop.length) {
+      np(i) = netPop(i).burstMutate(0.1,cauchy,rnd0)
+    }
+    val cp = new CellPopulationD(1,1,1,1)
+    val np2 = new NetPopulationD(cp)
+    np2.init(np)
+    np2
   }
   def getBestFitness : Double = {
     if (sorted) {
@@ -125,11 +142,11 @@ class NetPopulationD(cPop:CellPopulationD) {
     }
   }
   override def toString : String = {
-    var srep = "<NetPopulationT>\n"
+    var srep = "<NetPopulationD>\n"
     for (i <- 0.until(netPop.length)) {
       srep += netPop(i)+"\n"
     }
-    srep += "</NetPopulationT>"
+    srep += "</NetPopulationD>"
     srep
   }
   def toXML : Elem = {
@@ -139,5 +156,21 @@ class NetPopulationD(cPop:CellPopulationD) {
       elems(i) = netPop(i).toXML //new Elem(null,"Net"+i,null,top,netPop(i).toXML)
     }
     <NetPopulationD>{for (i <- 0 until elems.length) yield elems(i) }</NetPopulationD>
+  }
+}
+object NetPopulationD {
+  def fromXML(ns:NodeSeq) : NetPopulationD = {
+    val np = ns \\ "RNND"
+    val nSize = np.size
+    val n = new Array[RNND](nSize)
+    
+    var i = 0
+    for (net <- np) {
+      n(i) = RNND.fromXML(net)
+      i += 1
+    }
+    val netP = new NetPopulationD(new CellPopulationD(1,1,1,1))//Might make sense to change the default constructor
+    netP.init(n)
+    netP
   }
 }

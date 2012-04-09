@@ -7,18 +7,18 @@ object XMLOperator {
     var res = Queue[Node]()
     //println("Filtering...")
     feed\\"cnn" foreach{(entry) => res = res.+:(entry) }
-    res
+    res.reverse
   }
   def filterNodeSeq(feed:NodeSeq) : Seq[Node] = {
     var res = Queue[Node]()
     //println("Filtering...")
     feed\\"cnn" foreach{(entry) => res = res.+:(entry) }
-    res
+    res.reverse
   }
   def customFilter(feed:NodeSeq,str:String) : Seq[Node] = {
     var res = Queue[Node]()
     feed\\str foreach{(entry) => res = res.+:(entry) }
-    res
+    res.reverse
   }
   def toElem(seq:NodeSeq) : Elem = {
     

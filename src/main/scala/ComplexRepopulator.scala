@@ -2,11 +2,11 @@ package neurogenesis.doubleprecision
 
 import neurogenesis.util.Distribution
 import neurogenesis.util.CoolingSchedule
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 
 class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] {
 
-  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: Random): Unit = { 
+  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: MersenneTwisterFast,discardRate:Double=0.75): Unit = { 
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
     val popSize = pop.getSize
@@ -33,7 +33,7 @@ class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] 
           idx2 = pop.getIDX(rnd.nextDouble,fArray)
           counter += 1
         }
-        nextGen(k) = inputPop(i)(idx1).combine(inputPop(i)(idx2),dist,mutProb,flipProb)
+        nextGen(k) = inputPop(i)(idx1).combine(inputPop(i)(idx2),dist,mutProb,flipProb,rnd,discardRate)
       }
       for (k <- h until popSize) {
         nextGen(k) = inputPop(i)(k)
@@ -54,7 +54,7 @@ class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] 
           l = pop.getIDX(rnd.nextDouble,fArray)
           counter += 1
         }
-        nextGen(j) = blockPop(i)(k).combine(blockPop(i)(l),dist,mutProb,flipProb)
+        nextGen(j) = blockPop(i)(k).combine(blockPop(i)(l),dist,mutProb,flipProb,rnd,discardRate)
       }
       for (j <- h until popSize) {
         nextGen(j) = blockPop(i)(j)
@@ -79,7 +79,7 @@ class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] 
           nextGen(j) = outputPop(i)(l).burstMutate(0.3,dist,rnd)
         }
         else {
-          nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb)
+          nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb,rnd,discardRate)
         }
       }
       for (j <- h until popSize) {

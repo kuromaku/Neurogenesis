@@ -2,7 +2,8 @@ package neurogenesis.util
 import neurogenesis.msg.LoadData
 import neurogenesis.msg.ProgressMessage
 import neurogenesis.msg.AnotherDataList
-
+import neurogenesis.msg.AnotherArray
+import scala.swing.Frame
 import scala.io.Source
 import scala.actors.Actor
 import java.io._
@@ -62,6 +63,19 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	              reporter ! ProgressMessage("Dataworker finished reading the first data array from file "+file.getPath())
 	            worker ! AnotherDataList(data.apply(counter-1))
 	          }
+	        }
+	      }
+	      case AnotherArray(arr) => { //Received after calculating the validation results
+	        val cols = arr(0).length
+	        Plotting.title("Validation results vs. target data")
+	        for (i <- 0 until cols) {
+	          val (x1,y1) = getAsTensors(3,i)
+	          Plotting.subplot(cols,1,i+1)
+	          Plotting.plot(x1,y1,'-',"b")
+	          Plotting.hold(true)
+	          val (x2,y2) = getAsTensors(arr,i)
+	          Plotting.plot(x2,y2,'-',"r")
+	          Plotting.hold(false)
 	        }
 	      }
 	    }
@@ -230,6 +244,28 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	  for (i <- 0 until l) {
 	    Plotting.subplot(l,1,i+1)
 	    val (x,y) = getAsTensors(counter-1,i,1000)
+	    val k = i % 6
+	    k match {
+	      case 0 => Plotting.plot(x,y,'-',"r")
+	      case 1 => Plotting.plot(x,y,'-',"b")
+	      case 2 => Plotting.plot(x,y,'-',"B")
+	      case 3 => Plotting.plot(x,y,'-',"y")
+	      case 4 => Plotting.plot(x,y,'-',"c")
+	      case 5 => Plotting.plot(x,y,'-',"k")
+	      case _ => Plotting.plot(x,y,'-',"m")
+	    }
+	    Plotting.hold(true)
+	    Plotting.title("column: "+i)
+	    Plotting.hold(false)
+	  }
+	}
+   def makeSubplots(idx:Int,frame:Frame) : Unit = {
+      frame.close
+	  val a = data.apply(idx)
+	  val l = a(0).length
+	  for (i <- 0 until l) {
+	    Plotting.subplot(l,1,i+1)
+	    val (x,y) = getAsTensors(idx,i,1000)
 	    val k = i % 6
 	    k match {
 	      case 0 => Plotting.plot(x,y,'-',"r")

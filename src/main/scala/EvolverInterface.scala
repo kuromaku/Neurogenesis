@@ -31,6 +31,7 @@ import javax.imageio.ImageIO
 import java.awt.Graphics2D
 import javax.swing.JFrame
 import javax.swing.JPanel
+import scalala.library.random.MersenneTwisterFast
 
 class EvolverInterface extends SimpleSwingApplication {
   val configPath = "./EvolverConfig.xml"
@@ -47,7 +48,7 @@ class EvolverInterface extends SimpleSwingApplication {
   var supervisor = new EvolutionSupervisor(reportArea,fitnessLabel,numThreads)
   var evolvers = List[NeuralEvolver]()
   //var evolvers2 = List[NeuralEvolver[Float]]()
-  val rnd = new Random
+  val rnd = new MersenneTwisterFast(System.currentTimeMillis())//new Random
   var printInfo = false
   val start = new Button {
 	  text = "Start Evolution"
@@ -270,9 +271,11 @@ class EvolverInterface extends SimpleSwingApplication {
         saveOnExit = SaveOnExit.selected
         if (saveOnExit) {
           reportArea.append("Will save all evolvers when exiting training.\n")
+          supervisor.setSaveOnExit(true)
         }
         else {
           reportArea.append("Won't save evolvers when stopping training.\n")
+          supervisor.setSaveOnExit(false)
         }
       }
     }
@@ -430,6 +433,17 @@ class EvolverInterface extends SimpleSwingApplication {
       } catch {
         case _ => reportArea.append("Could not determine whether to save evolvers on exit.\n")
       }
+      try {
+        val selector = (e \\ "Repopulator").text
+        selector match {
+          case "ComplexRP" => {
+            repopulatorSelector.selection.index_=(1)
+          }
+          case _ => Unit
+        }
+      } catch {
+        case _ => reportArea.append("Using default repopulator.\n")
+      }
     }
     else {
       reportArea.append("Could not read the config file.\n")
@@ -437,7 +451,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def writeConfig : Boolean = {
-    val e1 = new Array[Elem](21)
+    val e1 = new Array[Elem](22)
     e1(0) = <DimensionX>{dimX}</DimensionX>
     e1(1) = <DimensionY>{dimY}</DimensionY>
     e1(10) = <NumThreads>{numThreads}</NumThreads>
@@ -459,6 +473,7 @@ class EvolverInterface extends SimpleSwingApplication {
     e1(18) = <DiscardRate>{discardRate}</DiscardRate>
     e1(19) = <MaxPopSize>{maxPopSize}</MaxPopSize>
     e1(20) = <SaveOnExit>{saveOnExit}</SaveOnExit>
+    e1(21) = <Repopulator>{repopulatorSelector.selection.item}</Repopulator>
     //e1(15) =
     val xrep = <EvolverConfig>{for (i <- 0 until e1.length) yield e1(i)}</EvolverConfig>
     val f = new File(configPath)
@@ -529,7 +544,7 @@ class EvolverInterface extends SimpleSwingApplication {
     val allPops = new Array[CellPopulationD](numThreads)
     val allNets = new Array[NetPopulationD](numThreads)
     val allEvolvers = new Array[NeuralEvolver](numThreads)
-    val rnd = new Random
+    //val rnd = new Random
     printInfo = printInfoSelector.selected
     supervisor.setPrintInfo(printInfo)
     supervisor.setSaveOnExit(saveOnExit)
@@ -551,7 +566,7 @@ class EvolverInterface extends SimpleSwingApplication {
       allPops(i).init(initialDistScale,1,rnd)
       allNets(i) = new NetPopulationD(allPops(i))
       allNets(i).init
-      allEvolvers(i) = new NeuralEvolver(allPops(i),allNets(i),supervisor,1,supervisor.getReporter,rnd)
+      allEvolvers(i) = new NeuralEvolver(allPops(i),allNets(i),supervisor,1,supervisor.getReporter,rnd,discardRate)
       allEvolvers(i).addDLists(dworker.getDLists)
       allEvolvers(i).setActFun(actFun)
       allEvolvers(i).setBurstFreq(burstMutationFreq)
@@ -603,9 +618,9 @@ class EvolverInterface extends SimpleSwingApplication {
     for (i <- restoredCount until numThreads) {
       val pop0 = evolvers.apply(0).getCellPop
       val npop0 = evolvers.apply(0).getNetPop
-      val pop1 = pop0.burstMutate2(0.1,new CauchyDistribution(0.01),new Random)
-      val npop1 = npop0.burstMutate
-      val evoX = new NeuralEvolver(pop1,npop1,supervisor,1,supervisor.getReporter,rnd)
+      val pop1 = pop0.burstMutate2(0.1,new CauchyDistribution(0.01),rnd)
+      val npop1 = npop0.burstMutate(rnd)
+      val evoX = new NeuralEvolver(pop1,npop1,supervisor,1,supervisor.getReporter,rnd,discardRate)
       evolvers = evolvers.:+(evoX)
       reportArea.append("Added another mutated Evolver.\n")
     }
@@ -732,9 +747,11 @@ class EvolverInterface extends SimpleSwingApplication {
 	    contents += configureNow
 	  }
 	  contents += new Menu("Control") {
-	    contents += gogo //supervisor seems to halt sometimes.. this tells it to go on again
-	    contents += new Separator
 	    contents += stopEvolution
+	    contents += new Separator
+	    contents += gogo //the supervisor seemed to halt sometimes.. this tells it to go on again
+	    
+	    
 	  }
 	  //name_=()
 	}
@@ -768,7 +785,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`start`) => {
 	    if (modeSelector.selection.item == "Evolino" && dworker.getCount < 4) {
-	      reportArea.append("Evolino requires 4 data arrays.\n")
+	      reportArea.append("Evolino requires 4 data arrays.\n"+"Please load more data.\n")
 	    }
 	    else {
 	    if (!startedBefore) {
@@ -778,9 +795,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	      else {
 	        initPopulation
 	      }
-	      displayNet.enabled_=(true)
-	      writeBestNet.enabled_=(true)
-	      runLeastSquares.enabled_=(true)
+
 	      startedBefore = true
 	      start.enabled_=(false)
 	      stopEvolution.enabled_=(true)
@@ -789,6 +804,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	      }
 	    }
 	    else {
+	      fitnessLabel.text_=("0")
 	      supervisor = new EvolutionSupervisor(reportArea,fitnessLabel,numThreads)
 	      if (evolverInMemory) {
 	        initEvolvers
@@ -827,6 +843,9 @@ class EvolverInterface extends SimpleSwingApplication {
 	    start.enabled_=(true)
 	    calculateValidationError.enabled_=(true)
 	    writeBestPopulation.enabled_=(true)
+	    displayNet.enabled_=(true)
+	    writeBestNet.enabled_=(true)
+	    runLeastSquares.enabled_=(true)
 	  }
 	  case ButtonClicked(`clearData`) => {
 	    dworker.removeAllData
@@ -843,7 +862,9 @@ class EvolverInterface extends SimpleSwingApplication {
 	    val bestRNN = supervisor.getSuperStar.makeClone
 	    bestRNN.feedData(dworker.getData(0),actFun)
 	    val res1 = bestRNN.feedData(dworker.getData(2),actFun)
+	    reportArea.append("Note: Not yet implement correctly if you are using Evolino.\n")
 	    reportArea.append("Validation error was: "+NeuralOps.totalError(dworker.getData(3),res1.toList)+"\n")
+	    dworker ! AnotherArray(res1)
 	  }
 	  case ButtonClicked(`makePredictions`) => {
 	    if (modes.indexOf(modeSelector.selection.item) < 2) {
@@ -917,7 +938,30 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`plotData`) => {
 	    //dworker.plotColumns
-	    dworker.makeSubplots
+	    val pFrame:Frame = new Frame { 
+	      title_=("SelectionFrame")
+	    }
+	    val dCount = dworker.getCount
+	    val seBox = new ComboBox(Range(0,dCount,1).toSeq)
+	    val plotNow = new Button("PlotNow!") {
+	        object plotNowAction extends Action("PlotNow!") {
+	          def apply : Unit = {
+	            dworker.makeSubplots(seBox.selection.item,pFrame)
+	          }
+	        }
+	        action_=(plotNowAction)
+	    }
+	    pFrame.contents_=(new GridPanel(2,1) {
+	      contents += new GridPanel(1,2) {
+	        contents += new Label("Array:")
+	        contents += seBox
+	      }
+	      contents += plotNow
+	    })
+	    pFrame.preferredSize_=(new Dimension(260,160))
+	    pFrame.centerOnScreen()
+	    pFrame.pack
+	    pFrame.visible_=(true)
 	  }
 	  case ButtonClicked(`writeConfigNow`) => {
 	    writeConfig
@@ -1000,10 +1044,12 @@ class EvolverInterface extends SimpleSwingApplication {
             def apply(x:Double) : Double = { val y = 2/(1+scala.math.exp(-x))-1; y }
           }
           def easyPrint(a:Array[Double]) : Unit = { for (i <- 0 until a.length) { reportArea.append(a(i).toString+" ")}; reportArea.append("\n")}
+          reportArea.append("Running a basic test to see how the network works.\n")
+          reportArea.append("First the results obtained by feeding the first data set to the RNN:\n")
           for (item <- l) {
             easyPrint(rnn.activate(item,f))
           }
-          println("Evolino: \n")
+          reportArea.append("Evolino results: \n")
           for (item <- l) {
             easyPrint(rnn.evolinoActivate(item,f))
           }
@@ -1044,6 +1090,18 @@ class EvolverInterface extends SimpleSwingApplication {
             val (x,y) = dworker.getAsTensors(res,i)
             Plotting.subplot(res(0).length,1,i+1)
             Plotting.plot(x,y)
+            if (idx == 2) {
+              Plotting.hold(true)
+              val (x2,y2) = dworker.getAsTensors(1,i)
+              Plotting.plot(x2,y2)
+              Plotting.hold(false)
+            }
+            else if (idx == 4) {
+              Plotting.hold(true)
+              val (x2,y2) = dworker.getAsTensors(3,i)
+              Plotting.plot(x2,y2)
+              Plotting.hold(false)
+            }
           }
         }
       }
@@ -1123,8 +1181,9 @@ class EvolverInterface extends SimpleSwingApplication {
       sDir.mkdir()
     }
     val bestNet = supervisor.getSuperStar
-    
-    val fitness = bestNet.getFitness.toString
+    val f0 = bestNet.getFitness
+    if (f0 > 0) {
+    val fitness = f0.toString
     val fs = if (fitness.length > 6) fitness.substring(0,6) else fitness
     try {
       val frep = saveDirectory+"/"+f+"f"+fs+".graph"
@@ -1144,7 +1203,10 @@ class EvolverInterface extends SimpleSwingApplication {
     } catch {
       case _ => reportArea.append("Could not write the net for some reason.\n")
     }
-    
+    }
+    else {
+      reportArea.append("Could not find any decent network to save.\n")
+    }
   }
   def graph2Img(g:SparseGraph[Int,String]) : Image = {
     val lOut = new FRLayout(g)
@@ -1184,7 +1246,7 @@ class EvolverInterface extends SimpleSwingApplication {
     val bNets = (xml \\ "BestNets")
     val cpop = CellPopulationD.fromXML(xml \\ "CellPopulation")
     val npop = NetPopulationD.fromXML(xml \\ "NetPopulationD")
-    val e = new NeuralEvolver(cpop,npop,supervisor,0,supervisor.getReporter,new Random)
+    val e = new NeuralEvolver(cpop,npop,supervisor,0,supervisor.getReporter,rnd,discardRate)
     if (bNets != NodeSeq.Empty) {
       reportArea.append("Restoring the best nets...\n")
       e.restoreBestNets(bNets)

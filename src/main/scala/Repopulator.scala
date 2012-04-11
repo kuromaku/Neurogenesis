@@ -1,7 +1,7 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util._
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 
 trait Repopulator[T] {
-  def repopulate(pop:T,dist:Distribution,schedule:CoolingSchedule,rnd:Random) : Unit
+  def repopulate(pop:T,dist:Distribution,schedule:CoolingSchedule,rnd:MersenneTwisterFast,discardRate:Double=0.75) : Unit
 }

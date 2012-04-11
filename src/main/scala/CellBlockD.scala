@@ -1,6 +1,6 @@
 package neurogenesis.doubleprecision
 
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 import scala.xml._
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
@@ -48,8 +48,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  def getNumOfCells : Int = memState.length
  def getForward(idx:Int) : NeuralConnsD = fConns(idx)
  def getRecurrent(idx:Int) : NeuralConnsD = rConns(idx)
- def flipBits(p:Double,rnd:Random) : Unit = for (i <- 0 until 3) { if (rnd.nextDouble < p) gateBits(i) = !gateBits(i) }
- def addRandomConnections(num:Int,rnd:Random) : Int = {
+ def flipBits(p:Double,rnd:MersenneTwisterFast) : Unit = for (i <- 0 until 3) { if (rnd.nextDouble < p) gateBits(i) = !gateBits(i) }
+ def addMersenneTwisterFastConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
    var sum = 0
    for (i <- 0 until fConns.length) {
      for (j <- 0.to(num)) {
@@ -63,7 +63,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    sum
  }
- def burstMutate(prob:Double,dist:Distribution,rnd:Random) : CellBlockD = {
+ def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : CellBlockD = {
    val fc = new Array[NeuralConnsD](fConns.length)
    val rc = new Array[NeuralConnsD](rConns.length)
    for (i <- 0 until fConns.length) {
@@ -83,12 +83,12 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    new CellBlockD(bias,f,r)
  }
- def combine(block2:CellBlockD,dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : CellBlockD = {
+ def combine(block2:CellBlockD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : CellBlockD = {
    var f = new Array[NeuralConnsD](memState.length)
    var r = new Array[NeuralConnsD](memState.length)
    for (i <- 0 until f.length) {
-     f(i) = fConns(i).combine(block2.getForward(i),dist,mutP,flipP,rnd)
-     r(i) = rConns(i).combine(block2.getRecurrent(i),dist,mutP,flipP,rnd)
+     f(i) = fConns(i).combine(block2.getForward(i),dist,mutP,flipP,rnd,discardRate)
+     r(i) = rConns(i).combine(block2.getRecurrent(i),dist,mutP,flipP,rnd,discardRate)
    }
    val b2 = new CellBlockD(bias,f,r)
    for (i <- 0 until 3) {
@@ -101,7 +101,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    b2
  }
- def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:Random) : CellBlockD = {
+ def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : CellBlockD = {
    if (addBlock) {
      val ncf = new Array[NeuralConnsD](memState.length)
      val ncr = new Array[NeuralConnsD](memState.length)

@@ -1,6 +1,6 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util._
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 import java.io.File
 import java.io.FileReader
 import scala.xml._
@@ -25,9 +25,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   var connProb = 0.5
   //def setMutProb(mp:Double) : Unit = { mutProb = mp }
   //def setFlipProb(fp:Double) : Unit = { flipProb = fp }
-  //val random = new Random
+  //val random = new MersenneTwisterFast
   
-  def init(scale:Double,outBias:Double,rnd:Random) : Unit = {
+  def init(scale:Double,outBias:Double,rnd:MersenneTwisterFast) : Unit = {
     val cDist = new CauchyDistribution(scale)
     val mid = inputs + blocks*4
     val total = mid+outputs
@@ -79,7 +79,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       outputPop(i) = new Array[OutCellD](popSize)
     }
   }
-  def getRNN(rnd:Random) : RNND = {
+  def getRNN(rnd:MersenneTwisterFast) : RNND = {
     val ic = new Array[InCellD](inputs)
     for (i <- 0.until(inputs)) {
       ic(i) = inputPop(i)(rnd.nextInt(popSize))
@@ -136,7 +136,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
     }
   }
-  def burstMutate(burstProb:Double,dist:Distribution,rnd:Random) : Unit = {
+  def burstMutate(burstProb:Double,dist:Distribution,rnd:MersenneTwisterFast) : Unit = {
     for (i <- 0 until popSize-3) {
       for (j <- 0 until inputs) {
         val idx = rnd.nextInt(3)+1
@@ -152,7 +152,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
     }
   }
-  def burstMutate2(burstProb:Double,dist:Distribution,rnd:Random) : CellPopulationD = {
+  def burstMutate2(burstProb:Double,dist:Distribution,rnd:MersenneTwisterFast) : CellPopulationD = {
     val cp2 = new CellPopulationD(inputs,blocks,outputs,popSize)
     val inputPop2 = new Array[Array[InCellD]](inputs)
     val blockPop2 = new Array[Array[CellBlockD]](blocks)
@@ -175,7 +175,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     cp2.replaceCells(inputPop2,blockPop2,outputPop2)
     cp2
   }
-  def complexify(addBlock:Boolean,rnd:Random) : CellPopulationD = {
+  def complexify(addBlock:Boolean,rnd:MersenneTwisterFast) : CellPopulationD = {
     if (addBlock) {
       val cPop = new CellPopulationD(inputs,blocks+1,outputs,popSize)
       val mC = blockPop(0)(0).getNumOfCells
@@ -278,7 +278,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       cPop
     }
   }
-  def update(rnd:Random) : Unit = {
+  def update(rnd:MersenneTwisterFast) : Unit = {
 
   }
   def getCDF(e:Array[_ <: EvolvableD]) : Array[Double] = {
@@ -305,7 +305,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     return cdf.length-1
   }
   /*
-  def repopulateSpecializedCellPopulation(e:Array[Combinable],dist:Distribution,rnd:Random) : Unit = {
+  def repopulateSpecializedCellPopulation(e:Array[Combinable],dist:Distribution,rnd:MersenneTwisterFast) : Unit = {
     val fArray = getCDF(e)
     val l = e.length
     val clones = new Array[Combinable](l)
@@ -326,7 +326,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   /*Produces the next generation of this CellPopulation
    * 
    */
-  def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:Random) : Unit = {
+  def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:MersenneTwisterFast) : Unit = {
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
     val h = (popSize/2).toInt
@@ -401,7 +401,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     }
     
   }
-  def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:Random,cutRatio:Double) : Unit = {
+  def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:MersenneTwisterFast,cutRatio:Double) : Unit = {
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
     val h = (cutRatio*popSize).toInt

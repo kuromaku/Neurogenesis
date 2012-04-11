@@ -1,6 +1,6 @@
 package neurogenesis.doubleprecision
 
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 import scala.xml.Elem
 import scala.xml.NodeSeq
 import scala.xml.TopScope
@@ -18,8 +18,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   val blockSize = cellBlocks(0).getSize - 3 //
   val out = outputLayer.length
   //var firstInput = true
-  val memGates = cellBlocks(0).getSize //number of inputs the blocks have 
-  val midPoint = in + numBlocks*memGates //after these only output cells remain
+  val synapses = cellBlocks(0).getSize //number of inputs the blocks have 
+  val midPoint = in + numBlocks*synapses //after these only output cells remain
   
   def activate(inputs:Array[Double],actFun:Function1[Double,Double]) : Array[Double] = {
 	  val res = new Array[Double](outputLayer.size)
@@ -101,7 +101,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
 	  rnn
 	}
 	*/
-  def burstMutate(prob:Double,dist:Distribution,rnd:Random) : RNND = {
+  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : RNND = {
     val il = new Array[InCellD](in)
     for (i <- 0 until in) {
       il(i) = inputLayer(i).burstMutate(prob,dist,rnd)
@@ -135,18 +135,18 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     new RNND(il,bl,ol)
   }
-  def combine(net2:RNND,dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : RNND = {
+  def combine(net2:RNND,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double) : RNND = {
     val il = new Array[InCellD](in)
     val bl = new Array[CellBlockD](numBlocks)
     val ol = new Array[OutCellD](out)
     for (i <- 0 until in) {
-      il(i) = inputLayer(i).combine(net2.getIn(i),dist,mutP,flipP,rnd)
+      il(i) = inputLayer(i).combine(net2.getIn(i),dist,mutP,flipP,rnd,discardRate)
     }
     for (i <- 0 until numBlocks) {
-      bl(i) = cellBlocks(i).combine(net2.getMid(i),dist,mutP,flipP,rnd)
+      bl(i) = cellBlocks(i).combine(net2.getMid(i),dist,mutP,flipP,rnd,discardRate)
     }
     for (i <- 0 until out) {
-      ol(i) = outputLayer(i).combine(net2.getOut(i),dist,mutP,flipP,rnd)
+      ol(i) = outputLayer(i).combine(net2.getOut(i),dist,mutP,flipP,rnd,discardRate)
     }
     new RNND(il,bl,ol)
   }
@@ -218,7 +218,9 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     for (i <- 0 until out) {
       ol(i) = outputLayer(i).makeClone
     }
-    new RNND(il,bl,ol)
+    val cloned = new RNND(il,bl,ol)
+    cloned.setFitness(fitness)
+    cloned
   }
   override def setFitness(f:Double) : Unit = {
     for (i <- 0 until in) {
@@ -240,8 +242,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       }
       else if (dest < midPoint) {
         val aux = dest - in
-        val numG = aux % memGates
-        val numB:Int = aux / memGates
+        val numG = aux % synapses
+        val numB:Int = aux / synapses
         cellBlocks(numB).stimulate(w*actVal,numG)
 	      
       }
@@ -260,8 +262,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       else if (dest < midPoint) {
         if (b) {
           val aux = dest - in
-          val numG = aux % memGates
-          val numB:Int = aux / memGates
+          val numG = aux % synapses
+          val numB:Int = aux / synapses
           cellBlocks(numB).stimulate(w*actVal,numG)
         }
       }
@@ -302,7 +304,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val ip = new Elem(null,"InputLayer",null,tscope,inL: _*)
     val bp = new Elem(null,"BlockLayer",null,tscope,bL: _*)
     val op = new Elem(null,"OutputLayer",null,tscope,oL: _*)
-    val res = <RNND>{ip}{bp}{op}</RNND>
+    val res = <RNND><Fitness>{fitness}</Fitness>{ip}{bp}{op}</RNND>
     res
   }
 
@@ -340,7 +342,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       }
     }
     for (i <- 0 until numBlocks) {
-      for (j <- 0 until (memGates-3)) {
+      for (j <- 0 until (synapses-3)) {
         val cnn = cellBlocks(i).getForward(j).conns
         for ((dest,(w,b)) <- cnn) {
           if (b) {
@@ -348,7 +350,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
             if (ws.length > 4) {
               ws = ws.substring(0,4)
             }
-            graph.addEdge(idx+"f"+ws,new Pair[Int](in+i*memGates+j,dest),EdgeType.DIRECTED)
+            graph.addEdge(idx+"f"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
           }
         }
@@ -359,7 +361,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
             if (ws.length > 4) {
               ws = ws.substring(0,4)
             }
-            graph.addEdge(idx+"r"+ws,new Pair[Int](in+i*memGates+j,dest),EdgeType.DIRECTED)
+            graph.addEdge(idx+"r"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
           }
         }
@@ -369,7 +371,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       for (j <- 0 until 3) {
         if (cellBlocks(i).gateBits(j)) {
           for (k <- 0 until cellBlocks(i).getNumOfCells) {
-            val m = in+i*memGates+j+memGates-3
+            val m = in+i*synapses+j+synapses-3
             graph.addEdge(idx+"g"+j+"c"+k,new Pair[Int](midPoint+out+i*nC+j,in+i*(nC+3)+k),EdgeType.DIRECTED)
             idx += 1
           }

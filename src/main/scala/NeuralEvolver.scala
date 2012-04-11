@@ -15,8 +15,10 @@ import scalala.library.Storage
 import java.util.zip.Deflater
 import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
+import scalala.tensor.dense.DenseMatrix
+import scalala.library.random.MersenneTwisterFast
 
-class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter,rnd:Random) extends Actor {
+class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter,rnd:MersenneTwisterFast,discardRate:Double=0.75) extends Actor {
   var proceed = true
   /*
   var inputData = List[Array[Double]]()
@@ -50,6 +52,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var writeNow = false
   var evoMode = 0 //which mode to use?
   var fileName = new File("")
+  var matrix:DenseMatrix[Double] = null
   def getCellPop : CellPopulationD = cellPopulation
   def getNetPop : NetPopulationD = netPopulation
   def setID(nid:Int) : Unit = { myId = nid }
@@ -59,8 +62,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setNetRepopulator(nrp:NetRepopulator[NetPopulationD,CellPopulationD]) : Unit = { netRepopulator = nrp }
   def setDistribution(dist2:Distribution) : Unit = { distribution = dist2 }
   def isRunning : Boolean = updatingNow
-  
+  def initMatrix : Unit = {
+    matrix = NeuralOps.list2Matrix(dataSets.apply(1))
+  }
   def act : Unit = {
+    if (evoMode == 2) {
+      initMatrix
+    }
     loop {
       react {
         case UpdateNow(step) => {
@@ -76,8 +84,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               }
               netPopulation.getRNN(i).setFitness(fn)
             }
-            else if (evoMode == 2) {
-              val rM = netPopulation.getRNN(i).linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
+            else if (evoMode == 2) { //Evolino
+              val rM = netPopulation.getRNN(i).linearRegression(dataSets.apply(0),matrix,actFun) //NeuralOps.list2Matrix(dataSets.apply(1))
               if (rM != null) {
                 val err = netPopulation.getRNN(i).evolinoValidate(dataSets.apply(2),dataSets.apply(3),actFun,rM)
                 var fn = 1000000.0
@@ -113,7 +121,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           }
           //netPop.repopulate(distribution,mutProb,flipProb,rnd)
           if (!mutateNow) {
-            rePopulator.repopulate(cellPopulation,distribution,schedule,rnd)
+            rePopulator.repopulate(cellPopulation,distribution,schedule,rnd,discardRate)
             /*
             if (evoMode == 0) {
               cellPopulation.repopulate(distribution,schedule,rnd)
@@ -128,7 +136,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             mutateNow = false
             reporter ! ProgressMessage("Evolver id: "+myId+" undergoing burstmutation")
           }
-          netRepopulator.repopulate(netPopulation,cellPopulation,bestNets,distribution,schedule,rnd)
+          netRepopulator.repopulate(netPopulation,cellPopulation,bestNets,distribution,schedule,rnd,discardRate)
           /*
           if (evoMode == 0 || (evoMode == 1 && !bestNetsReady)) {
             netPop.repopulate(cellPopulation)
@@ -147,10 +155,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             nPop2.init
             val nPop3 = new NetPopulationD(cPop3)
             nPop3.init
-            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter,rnd)
+            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter,new MersenneTwisterFast(System.currentTimeMillis()))
             //evo2.addData(inputData,outputData)
             evo2.setEvoMode(evoMode)
-            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter,rnd)
+            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter,new MersenneTwisterFast(System.currentTimeMillis()))
             //evo3.addData(inputData,outputData)
             evo2.addDLists(dataSets)
             evo3.addDLists(dataSets)
@@ -243,13 +251,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       }
     }
     if (emptySlot) {
-      bestNets(emptyIdx) = net
+      bestNets(emptyIdx) = net.makeClone
       true
     }
     else {
       bestNets = bestNets.sortWith(_.getFitness < _.getFitness)
       if (bestNets(0).getFitness < net.getFitness) {
-        bestNets(0) = net
+        bestNets(0) = net.makeClone
         true
       }
       else {
@@ -259,6 +267,30 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   }
   def bestNetsReady : Boolean = {
     !bestNets.exists(_ == null)
+  }
+  def countBest : Int = {
+    var c = 0
+    for (i <- 0 until bestNets.length) {
+      if (bestNets(i) != null) c += 1
+    }
+    c
+  }
+  def getBest : RNND = {
+    var idx = bestNets.length - 1
+    var found = false
+    var bf = 0.0
+    var idx2 = 0
+    while (idx >= 0) {
+      if (bestNets(idx) != null) {
+        val cnd = bestNets(idx).getFitness
+        if (cnd > bf) {
+          bf = cnd
+          idx2 = idx
+        }
+      }
+      idx -= 1
+    }
+    bestNets(idx2)
   }
   def meanSquaredError(a1:Array[Double],a2:Array[Double]) : Double = {
     var error = 0d
@@ -444,13 +476,18 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     rep.toString
   }
   def toXML : Elem = {
-    if (bestNetsReady) {
-      val reps = new Array[Elem](bestNets.length)
-      for (i <- 0 until reps.length) {
-        reps(i) = bestNets(i).toXML
+    val c = countBest
+    if (c > 0) {
+      val reps = new Array[Elem](c)
+      var bid = 0
+      for (i <- 0 until c) {
+        while (bestNets(bid) == null) {
+          bid += 1
+        }
+        reps(i) = bestNets(bid).toXML
       }
       //val bnXML = <BestNets>{for (i <- 0 until bestNets.length) yield reps(i) }</BestNets>
-      <NeuralEvolver><Fitness>{lastBestFitness}</Fitness><BestNets>{for (i <- 0 until bestNets.length) yield reps(i) }</BestNets>{cellPopulation.toXML}{netPopulation.toXML}</NeuralEvolver>
+      <NeuralEvolver><Fitness>{lastBestFitness}</Fitness><BestNets>{for (i <- 0 until c) yield reps(i) }</BestNets>{cellPopulation.toXML}{netPopulation.toXML}</NeuralEvolver>
     }
     else {
       <NeuralEvolver><Fitness>{lastBestFitness}</Fitness>{cellPopulation.toXML}{netPopulation.toXML}</NeuralEvolver>

@@ -1,17 +1,17 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 import scala.xml._
 
 class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   var stim = 0d
   var activation = 0d
   def activate(actFun: Function1[Double,Double]) : Double = {activation = actFun(stim); activation }
-  def addRandomConnections(num:Int,rnd:Random) : Int = {
+  def addMersenneTwisterFastConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
     fConns.addRandomConnections(num,rnd)
   }
-  def burstMutate(prob:Double,dist:Distribution,rnd:Random) : InCellD = {
+  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : InCellD = {
     val fc = fConns.burstMutate(prob,dist,rnd)
     var rc = rConns.burstMutate(prob,dist,rnd)
     new InCellD(fc,rc)
@@ -37,13 +37,13 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP)
     new InCellD(f,r)
   }
-  def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : InCellD = {
+  def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : InCellD = {
     //val cops = implicitly[InCellD]
-    val f = fConns.combine(e2.getForward,dist,mutP,flipP,rnd)
-    val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP,rnd)
+    val f = fConns.combine(e2.getForward,dist,mutP,flipP,rnd,discardRate)
+    val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
     new InCellD(f,r)
   }
-  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:Random) : InCellD = {
+  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : InCellD = {
     new InCellD(fConns.complexify(in,blocks,memCells,out,addBlock,rnd),rConns.complexify(in,blocks,memCells,out,addBlock,rnd))
   }
   def makeClone : InCellD = {

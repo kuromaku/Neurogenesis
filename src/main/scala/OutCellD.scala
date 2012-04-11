@@ -1,7 +1,8 @@
 package neurogenesis.doubleprecision
 
 import neurogenesis.util.XMLOperator
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
+
 import scala.xml.Elem
 import scala.xml.NodeSeq
 import neurogenesis.util.Distribution
@@ -9,10 +10,10 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   var stim: Double = 0
   var activation : Double = 0
   def activate(actFun: Function1[Double,Double]) : Double = { activation = actFun(stim+bias); activation }
-  def addRandomConnections(num:Int,rnd:Random) : Int = {
+  def addMersenneTwisterFastConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
     rConns.addRandomConnections(num,rnd)
   }
-  def burstMutate(prob:Double,dist:Distribution,rnd:Random) : OutCellD = {
+  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : OutCellD = {
     val nr = rConns.burstMutate(prob,dist,rnd) //new NeuralConns(rConns.getMin,rConns.getMax)
     new OutCellD(bias,nr)
   }
@@ -25,11 +26,11 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
     val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP)
     new OutCellD(bias,r)
   }
-  def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : OutCellD = {
-    val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP,rnd)
+  def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : OutCellD = {
+    val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
     new OutCellD(bias,r)
   }
-  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:Random) : OutCellD = {
+  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : OutCellD = {
     val nc = new OutCellD(bias,rConns.complexify(in,blocks,memCells,out,addBlock,rnd))
     nc
   }

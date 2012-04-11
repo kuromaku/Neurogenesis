@@ -12,6 +12,8 @@ import scala.xml.Elem
 import scala.xml.NodeSeq
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
+import scalala.library.random.MersenneTwisterFast
+
 class NeuralConnsD(min:Int,max:Int) {
   //type T = Double
 	var minNode = min
@@ -72,12 +74,12 @@ class NeuralConnsD(min:Int,max:Int) {
 	  }
 
 	}
-	def addRandomConnection(rnd:Random) : Boolean = {
+	def addRandomConnection(rnd:MersenneTwisterFast) : Boolean = {
 		val dest = rnd.nextInt(maxNode-minNode)+minNode
 		val weight = scala.math.random-0.5
 		return addConnection(dest,weight)
 	}
-	def addRandomConnections(num:Int,rnd:Random) : Int = {
+	def addRandomConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
 	  var sum = 0
 	  for (i <- 0.to(num)) {
 	    if (addRandomConnection(rnd)) {
@@ -94,8 +96,8 @@ class NeuralConnsD(min:Int,max:Int) {
 		  addConnection(d,w+dist.inverse(Math.random),expr)
 		}
 	}
-	def addMutatedConnection(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution,rnd:Random) : Boolean = {
-		if (scala.math.random < flipP) {
+	def addMutatedConnection(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution,rnd:MersenneTwisterFast) : Boolean = {
+		if (rnd.nextDouble < flipP) {
 		  addConnection(d,w+dist.inverse(rnd.nextDouble),!expr)
 		}
 		else {
@@ -110,7 +112,7 @@ class NeuralConnsD(min:Int,max:Int) {
 		nc.set(conns2)
 		return nc
 	}
-	def burstMutate(prob:Double,dist:Distribution,rnd:Random) : NeuralConnsD = {
+	def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : NeuralConnsD = {
 	  val arr = conns.toArray
 	  val n = new NeuralConnsD(minNode,maxNode)
 	  for (i <- 0 until arr.length) {
@@ -247,7 +249,7 @@ class NeuralConnsD(min:Int,max:Int) {
 		}
 		nc
 	}
-    def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:Random,discardRate:Double = 0.75) : NeuralConnsD = {
+    def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double = 0.75) : NeuralConnsD = {
 		var nc = new NeuralConnsD(minNode,maxNode)
 		//val discardRate = 0.5
 		val iter1 = conns.iterator
@@ -363,10 +365,10 @@ class NeuralConnsD(min:Int,max:Int) {
 		}
 		nc
 	}
-	def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:Random) : NeuralConnsD = {
+	def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : NeuralConnsD = {
 	  complexifyWithTM(in,blocks,memCells,out,addBlock,rnd)
 	}
-	def complexifyWithTM(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:Random) : NeuralConnsD = {
+	def complexifyWithTM(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : NeuralConnsD = {
 	  val gates = memCells+3
 	  val mid = in + blocks*gates
 	  
@@ -470,7 +472,7 @@ class NeuralConnsD(min:Int,max:Int) {
 	def removeConnection(dest:Int) : Unit = {
 	  conns = conns.-(dest)
 	}
-	def removeRandomConnection(rnd:Random) : Unit = {
+	def removeRandomConnection(rnd:MersenneTwisterFast) : Unit = {
 	  val dest = (rnd.nextDouble*(maxNode-minNode)).toInt+minNode
 	  removeConnection(dest)
 	}

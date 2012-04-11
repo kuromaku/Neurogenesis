@@ -127,8 +127,12 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     }
   }
   def addEvolver(idx:Int,e:NeuralEvolver) : Unit = {
-    evolvers(idx) = (e,0)
-    e.setID(idx)
+    if (idx < evolvers.length) {
+      evolvers(idx) = (e,0)
+      e.setID(idx)
+      e.start
+    }
+    else addEvolver(e)
   }
   def addEvolver(e:NeuralEvolver) : Unit = {
     val arr = new Array[(NeuralEvolver,Int)](evolvers.length+1)
@@ -162,29 +166,22 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   def getSuperStar : RNND = {
     var found = false
     var idx = 4
-    var best = evolvers(0)._1.bestNets(idx)
-    while (!found) {
-    
-      var f = 0.0
-      if (best != null) {
-        f = best.getFitness
-      }
-      var i = 1
-      while (i < evolvers.size) {
-        val candidate = evolvers(i)._1.bestNets(idx)
-        if (candidate != null) {
-          val f2 = candidate.getFitness
-          if (f2 > f) {
-            f = f2
-             best = candidate
-          }
+    var best = evolvers(0)._1.getBest
+    var bi = 1
+    var f = 0.0
+    if (best != null) {
+      f = best.getFitness
+    }
+    while (bi < evolvers.size) {
+      val candidate = evolvers(bi)._1.getBest
+      if (candidate != null) {
+        val f2 = candidate.getFitness
+        if (f2 > f) {
+          f = f2
+          best = candidate
         }
-        i += 1
       }
-      idx -= 1
-      if (f > 0) {
-        found = true
-      }
+      bi += 1
     }
     best
   }

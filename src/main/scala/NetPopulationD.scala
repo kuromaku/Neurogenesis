@@ -1,7 +1,8 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util.Distribution
 import neurogenesis.util.CauchyDistribution
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
+
 import scala.xml.Elem
 import scala.xml.TopScope
 import scala.xml.NodeSeq
@@ -31,18 +32,19 @@ class NetPopulationD(cPop:CellPopulationD) {
   def init(n:Array[RNND]) : Unit = {
     netPop = n
   }
-  def burstMutate : NetPopulationD = {
+  
+  def burstMutate(rnd:MersenneTwisterFast) : NetPopulationD = {
     val cauchy = new CauchyDistribution(0.005)
-    val rnd0 = new Random
     val np = new Array[RNND](netPop.length)
     for (i <- 0 until netPop.length) {
-      np(i) = netPop(i).burstMutate(0.1,cauchy,rnd0)
+      np(i) = netPop(i).burstMutate(0.1,cauchy,rnd)
     }
     val cp = new CellPopulationD(1,1,1,1)
     val np2 = new NetPopulationD(cp)
     np2.init(np)
     np2
   }
+  
   def getBestFitness : Double = {
     if (sorted) {
       return netPop(netPop.length-1).getFitness
@@ -89,7 +91,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     a
   }
   //The following functionality is becoming obsolete as it is being moved to NetRepopulator
-  def repopulate(dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : Unit = {
+  def repopulate(dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast) : Unit = {
     sortPop
     val l = netPop.length
     for (i <- 0 until l/2) {
@@ -121,6 +123,30 @@ class NetPopulationD(cPop:CellPopulationD) {
     }
     sorted = false
   }
+  def getCDF(e:Array[_ <: EvolvableD]) : Array[Double] = {
+    var tProbMass = 0.0d
+    for (i <- 0 until e.length) {
+      tProbMass += e(i).getFitness
+    }
+    val a = new Array[Double](e.length)
+    
+    a(0) = e(0).getFitness/tProbMass
+    var sum = a(0)
+    for (i <- 1 until e.length) {
+      sum += e(i).getFitness
+      a(i) = sum/tProbMass
+    }
+    a
+  }
+  def getIDX(d:Double,cdf:Array[Double]) : Int = {
+    for (i <- 0 until cdf.length) {
+      if (d < cdf(i)) {
+        return i
+      }
+    }
+    return cdf.length-1
+  }
+  /*
   def repopulate(nCellPop:CellPopulationD,bNets:Array[RNND],dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : Unit = {
     val num = nCellPop.getSize/2
     val inPerms = permutations(num,nCellPop.getIn)
@@ -135,6 +161,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     }
     sorted = false
   }
+  */
   def sortPop : Unit = {
     if (!sorted) {
       netPop = netPop(0).sort(netPop)

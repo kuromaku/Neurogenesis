@@ -131,4 +131,24 @@ object NeuralOps {
       case _ => rArea.append("Could not complete linear regression because of a singular inversion matrix.")
     }
   }
+  def plotResults(a:Array[Array[Double]],a2:Array[Array[Double]]) : Unit = {
+    val mtrx = array2Matrix(a)
+    val mtrx2 = array2Matrix(a2)
+    val rows = mtrx.numRows
+    val cols = mtrx.numCols
+    val range = 0 until rows
+    val range2 = 0 until mtrx2.numRows
+    val points = new Array[Int](rows)
+    for (i <- 0 until rows) { points(i) = i}
+    val p = ArrayI.apply(points)
+    for (i <- 0 until cols) {
+      Plotting.subplot(cols,1,i+1)
+      Plotting.plot(p,mtrx2.apply(range,i),'-',"b")
+      
+      Plotting.hold(true)
+      
+      Plotting.plot(p,mtrx.apply(range,i),'-',"r")
+      Plotting.hold(false)
+    }
+  }
 }

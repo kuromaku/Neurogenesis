@@ -12,6 +12,8 @@ import edu.uci.ics.jung.graph.util.Pair
 import edu.uci.ics.jung.graph.util.EdgeType
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
+import libsvm._
+
 class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Array[OutCellD]) extends EvolvableD {
   val in = inputLayer.length
   val numBlocks = cellBlocks.length
@@ -172,6 +174,44 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       idx += 1
     }
     new DenseMatrix(dSize,stateSize,mDat)
+  }
+  /*Feeds data and returns results in a format that can be used by libsvm
+   * 
+   */
+  def svmFeed(inputData:Traversable[Array[Double]],actFun:Function1[Double,Double]) : Array[Array[svm_node]] = {
+    val sNodes = new Array[Array[svm_node]](inputData.size)
+    var idx = 0
+    for (r <- inputData) {
+      val res = evolinoActivate(r,actFun)
+      sNodes(idx) = new Array[svm_node](res.length)
+      for (i <- 0 until res.length) {
+        val node = new svm_node
+        node.index = i
+        node.value = res(i)
+        sNodes(idx)(i) = node
+      }
+      idx += 1
+    }
+    sNodes
+    //,targetCol:Array[Double]
+  }
+  def svmRegression(inputData:Traversable[Array[Double]],targetCols:Array[Array[Double]],actFun:Function1[Double,Double],svmParam:svm_parameter,data2:Traversable[Array[Double]]) : Array[Array[Double]] = {
+    val nodes = svmFeed(inputData,actFun)
+    //val probs = new Array[svm_problem](targetCols.length)
+    val res = Array.ofDim[Double](data2.size,targetCols.length)
+    val nodes2 = svmFeed(data2,actFun)
+    for (i <- 0 until targetCols.length) {
+      val prob = new svm_problem
+      prob.l = targetCols(i).length
+      prob.x = nodes
+      prob.y = targetCols(i)
+
+      val svm_model = svm.svm_train(prob,svmParam) //
+      for (j <- 0 until nodes2.length) {
+        res(j)(i) = svm.svm_predict(svm_model,nodes2(j))
+      }
+    }
+    res
   }
   def linearRegression(inputData:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double]) : DenseMatrix[Double] = {
     

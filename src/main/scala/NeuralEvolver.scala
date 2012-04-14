@@ -17,6 +17,7 @@ import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
 import scalala.tensor.dense.DenseMatrix
 import scalala.library.random.MersenneTwisterFast
+import libsvm._
 
 class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter,rnd:MersenneTwisterFast,discardRate:Double=0.75) extends Actor {
   var proceed = true
@@ -53,6 +54,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var evoMode = 0 //which mode to use?
   var fileName = new File("")
   var matrix:DenseMatrix[Double] = null
+  
+  var svmPar:svm_parameter = null
+  var svmCols: Array[Array[Double]] = null
+  var svmNodes:Array[Array[svm_node]] = null
+  var epsilonRegression = false
+  
   def getCellPop : CellPopulationD = cellPopulation
   def getNetPop : NetPopulationD = netPopulation
   def setID(nid:Int) : Unit = { myId = nid }
@@ -75,19 +82,20 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           updatingNow = true
           //println("Evo"+myId+" Step: "+schedule.getCurrent)
           for (i <- 0 until netPopulation.getSize) {
+            val rnn = netPopulation.getRNN(i)
             if (evoMode < 2) {
-              val res = netPopulation.getRNN(i).feedData(dataSets.apply(0),actFun)
+              val res = rnn.feedData(dataSets.apply(0),actFun)
               var mse = totalError(dataSets.apply(1),res)
               var fn = 10.0/mse
               if (fn.isNaN()) {
                 fn = 0
               }
-              netPopulation.getRNN(i).setFitness(fn)
+              rnn.setFitness(fn)
             }
             else if (evoMode == 2) { //Evolino
-              val rM = netPopulation.getRNN(i).linearRegression(dataSets.apply(0),matrix,actFun) //NeuralOps.list2Matrix(dataSets.apply(1))
+              val rM = rnn.linearRegression(dataSets.apply(0),matrix,actFun) //NeuralOps.list2Matrix(dataSets.apply(1))
               if (rM != null) {
-                val err = netPopulation.getRNN(i).evolinoValidate(dataSets.apply(2),dataSets.apply(3),actFun,rM)
+                val err = rnn.evolinoValidate(dataSets.apply(2),dataSets.apply(3),actFun,rM)
                 var fn = 1000000.0
                 if (err > 0.0) {
                   fn = 100.0/err
@@ -95,10 +103,21 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
                 else if (err.isNaN) {
                   fn = 0
                 }
-                netPopulation.getRNN(i).setFitness(fn)
+                rnn.setFitness(fn)
               }
               else {
-                netPopulation.getRNN(i).setFitness(0)
+                rnn.setFitness(0)
+              }
+            }
+            else if (evoMode == 3) { //svm
+              val res = rnn.svmRegression(dataSets.apply(0),svmCols,actFun,svmPar,dataSets.apply(2))
+              val err = totalError(dataSets.apply(3),res)
+              
+              if (!err.isNaN && err > 0) {
+                rnn.setFitness(100.0/err)
+              }
+              else {
+                rnn.setFitness(0.0)
               }
             }
           }
@@ -155,10 +174,11 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             nPop2.init
             val nPop3 = new NetPopulationD(cPop3)
             nPop3.init
-            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter,new MersenneTwisterFast(System.currentTimeMillis()))
+            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
             //evo2.addData(inputData,outputData)
             evo2.setEvoMode(evoMode)
-            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter,new MersenneTwisterFast(System.currentTimeMillis()))
+            
+            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
             //evo3.addData(inputData,outputData)
             evo2.addDLists(dataSets)
             evo3.addDLists(dataSets)
@@ -173,6 +193,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             evo3.setRepopulator(rePopulator)
             evo3.setNetRepopulator(netRepopulator)
             evo3.setSchedule(new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax))
+            if (evoMode == 3) {
+              evo2.initSVMLearner(svmNodes,svmCols,epsilonRegression)
+              evo3.initSVMLearner(svmNodes,svmCols,epsilonRegression)
+            }
             supervisor ! BirthMessageD(evo2)
             supervisor ! BirthMessageD(evo3)
             if (printInfo) {
@@ -211,7 +235,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             }
             val s0 = lastBestFitness.toString
             val fstring = if (s0.length > 6) s0.substring(0,6) else { s0 }
-            val fileName = new File(savePath+"/evolver_g"+schedule.getCurrent+"id"+myId+"f"+fstring+".txt")
+            val fileName = new File(savePath+"/evolver_g"+schedule.getCurrent+"id"+myId+"f"+fstring+".xml")
             if (!fileName.exists) {
               saveEvolver(fileName)
             }
@@ -295,7 +319,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def meanSquaredError(a1:Array[Double],a2:Array[Double]) : Double = {
     var error = 0d
     for (i <- 0 until a1.length) {
-      error += Math.sqrt(Math.pow(a2(i)-a1(i),2))
+      error += scala.math.sqrt(scala.math.pow(a2(i)-a1(i),2))
     }
     error = error
     error
@@ -336,6 +360,34 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       idx += 1
     }
     error
+  }
+  def initParam(epsilon:Boolean) : Unit = {
+    svmPar = new svm_parameter
+    if (epsilon) {
+      svmPar.svm_type = svm_parameter.EPSILON_SVR
+    }
+    else {
+      svmPar.svm_type = svm_parameter.NU_SVR
+    }
+    svmPar.kernel_type = svm_parameter.RBF
+    svmPar.degree = 3
+    svmPar.gamma = 1.0/cellPopulation.getStateLength
+    svmPar.coef0 = 0
+    svmPar.nu = 0.5
+    svmPar.cache_size = 1
+    svmPar.C = 1
+    svmPar.eps = 1e-2
+    svmPar.p = 0.1
+    svmPar.shrinking = 1
+    svmPar.probability = 0
+    svmPar.nr_weight = 0
+    //svmPar.weight_label = new Array[Int](0)
+    //svmPar.weight = new Array[Double](0)
+  }
+  def initSVMLearner(nodes:Array[Array[svm_node]],tCols:Array[Array[Double]],epsilonR:Boolean) : Unit = {
+    initParam(epsilonR)
+    svmNodes = nodes
+    svmCols = tCols
   }
   def setActFun(actFun2:Function1[Double,Double]) : Unit = { actFun = actFun2 }
   def setBurstFreq(freq:Int) : Unit = { burstMutationFreq = freq }

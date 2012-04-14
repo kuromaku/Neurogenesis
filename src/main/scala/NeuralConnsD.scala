@@ -504,6 +504,9 @@ object NeuralConnsD {
 	      nc.addConnection(d,w,b)
 	    }
       }
+	  case _ => {
+	    println("NeuralConnsD received wrong sort of an xml representation.\n")
+	  }
     }
     nc
   }

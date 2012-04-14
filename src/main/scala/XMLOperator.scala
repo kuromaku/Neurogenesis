@@ -1,17 +1,19 @@
 package neurogenesis.util
 
-import scala.xml._
+import scala.xml.Elem
+import scala.xml.NodeSeq
+import scala.xml.Node
+import scala.xml.TopScope
+
 import scala.collection.immutable.Queue
 object XMLOperator {
   def filterXML(feed:Elem) : Seq[Node] = {
     var res = Queue[Node]()
-    //println("Filtering...")
     feed\\"cnn" foreach{(entry) => res = res.+:(entry) }
     res.reverse
   }
   def filterNodeSeq(feed:NodeSeq) : Seq[Node] = {
     var res = Queue[Node]()
-    //println("Filtering...")
     feed\\"cnn" foreach{(entry) => res = res.+:(entry) }
     res.reverse
   }

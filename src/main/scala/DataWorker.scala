@@ -14,15 +14,26 @@ import scalala.tensor.dense.DenseMatrix
 import scalala.generic.collection.CanViewAsTensor1._
 import scalala.tensor.dense.DenseVectorCol
 import scalala.library.Plotting
+import libsvm.svm_node
+
 class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:Boolean) extends Actor {
 	var data = List[List[Array[Double]]]()
 	var counter = 0
 	var normalizers = List[Array[(Double,Double)]]()
+	var extVals = List[List[(Double,Double)]]()
+	var normalized = false
 	var dimensionsAgree = true
 	var normalize = autoNormalize
+	var svmNodes = List[Array[Array[svm_node]]]() //null //used with libsvm
+	
+	var svmCols = List[Array[Array[Double]]]()
+	var svmReady = false
+	
 	def getCount : Int = counter
 	def getData(idx:Int) : List[Array[Double]] = data.apply(idx)
 	def normalizeData(b:Boolean) : Unit = { normalize = b }
+	def getNodes(idx:Int) = svmNodes.apply(idx)
+	def getCols(idx:Int) = svmCols.apply(idx)
 	
 	def checkData : Unit = {
 	  if (counter == 2) {
@@ -81,7 +92,38 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	    }
 	  }
 	}
+	/*Reads a matrix using the scalala library method and
+	 * if normalization is in use calculates some necessary values for it
+	 */
 	def readMatrix(src:File) : Unit = {
+	  val fileIn = new BufferedInputStream(new FileInputStream(src))
+	  val mat = Storage.loadtxt(fileIn)
+	  fileIn.close
+	  if (normalize) {
+	    val a = new Array[Array[Double]](mat.numRows)
+	    for (i <- 0 until a.length) {
+	      a(i) = new Array[Double](mat.numCols)
+	    }
+	    val norm = new Array[(Double,Double)](mat.numCols)
+	    var colExt = List[(Double,Double)]()
+	    for (i <- 0 until mat.numCols) {
+	      val v = mat.apply(new Range(0,mat.numRows,1),i)
+	      val ext = (v.apply(v.argmin),v.apply(v.argmax))
+	      colExt = colExt.:+(ext)
+	      for (j <- 0 until v.length) {
+	        a(j)(i) = v.apply(j)
+	      }
+	    }
+	    extVals = extVals.:+(colExt)
+	    data = data :+(a.toList)
+	    counter += 1
+	  }
+	  else {
+	    matrix2List(mat)
+	    counter += 1
+	  }
+	}
+	def readMatrix2(src:File) : Unit = {
 	  val fileIn = new BufferedInputStream(new FileInputStream(src))
 	  val mat = Storage.loadtxt(fileIn)
 	  fileIn.close
@@ -111,6 +153,74 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	  else {
 	    matrix2List(mat)
 	    counter += 1
+	  }
+	}
+	/*Normalizes all loaded data arrays so that the values lie between the range -1,1. 
+	 *Should be used only when all the data has been loaded into memory.
+	*/
+	def normalizeAll : Unit = {
+	  if (!normalized) {
+	  val size = data.size
+	  val cols1 = data.apply(0).apply(0).length
+	  val cols2 = data.apply(1).apply(0).length
+	  val amax1 = new Array[Double](cols1)
+	  val amin1 = new Array[Double](cols1)
+	  var idx = 0
+	  while (idx < (size-1)) {
+	    val d = extVals.apply(idx)
+	    for (j <- 0 until cols1) {
+	      if (amin1(j) > d.apply(j)._1) {
+	        amin1(j) = d.apply(j)._1
+	      }
+	      if (amax1(j) < d.apply(j)._2) {
+	        amax1(j) = d.apply(j)._2
+	      }
+	    }
+	    idx += 2
+	  }
+	  val amax2 = new Array[Double](cols2)
+	  val amin2 = new Array[Double](cols2)
+	  idx = 1
+	  while (idx < size) {
+	    val d = extVals.apply(idx) 
+	      for (j <- 0 until cols2) {
+	        if (amin2(j) > d.apply(j)._1) {
+	          amin2(j) = d.apply(j)._1
+	        }
+	        if (amax2(j) < d.apply(j)._2) {
+	          amax2(j) = d.apply(j)._2
+	        }
+	      }
+	    idx += 2
+	  }
+	  idx = 0
+	  val wa = new Array[Double](cols1)
+	  val ma = new Array[Double](cols1)
+	  for (i <- 0 until cols1) { wa(i) = amax1(i)-amin1(i); ma(i) = amax1(i)+amin1(i) }
+	  
+	  while (idx < (size-1)) {
+	    val d = data.apply(idx)
+	    for (row <- d) {
+	      for (j <- 0 until cols1) {
+	        row(j) = (2*row(j)-ma(j))/wa(j)
+	      }
+	    }
+	    idx += 2
+	  }
+	  idx = 1
+	  val wa2 = new Array[Double](cols2)
+	  val ma2 = new Array[Double](cols2)
+	  for (i <- 0 until cols2) { wa2(i) = amax2(i)-amin2(i); ma2(i) = amax2(i)+amin2(i) }
+	  while (idx < size) {
+	    val d = data.apply(idx)
+	    for (row <- d) {
+	      for (j <- 0 until cols2) {
+	        row(j) = (2*row(j)-ma2(j))/wa2(j)
+	      }
+	    }
+	    idx += 2
+	  }
+	  normalized = true
 	  }
 	}
 	/*
@@ -283,7 +393,50 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	}
 	def removeAllData : Unit = { 
 	  data = List[List[Array[Double]]]()
-	  normalizers = List[Array[(Double,Double)]]() 
+	  normalizers = List[Array[(Double,Double)]]()
+	  svmNodes = List[Array[Array[svm_node]]]()
+	  svmCols = List[Array[Array[Double]]]()
+	  svmReady = false
 	  counter = 0
+	}
+	def data2svmformat(idx:Int) : Unit = {
+	  val d = data.apply(idx)
+	  val t = data.apply(idx+1)
+	  var i = 0
+	  //val size = t.length
+	  val cols = d(0).length
+	  val svmNodes2 = new Array[Array[svm_node]](d.size)
+	  for (row <- d) {
+	    svmNodes2(i) = new Array[svm_node](cols)
+	    for (j <- 0 until cols) {
+	      val node = new svm_node
+	      node.index = j + 1
+	      node.value = row(j)
+	      svmNodes2(i)(j) = node
+	    }
+	    i += 1
+	  }
+	  i = 0
+	  val l = t.size
+	  val svmCol = Array.ofDim[Double](t(0).length,l)
+	  
+	  for (row <- t) {
+	    for (j <- 0 until row.length) {
+	      svmCol(j)(i) = row(j)
+	    }
+	    i += 1
+	  }
+	  svmNodes = svmNodes.+:(svmNodes2)
+	  svmCols = svmCols.+:(svmCol)
+	}
+	def initSVM : Unit = {
+	  var i = 0
+	  while (i < counter-1) {
+	    data2svmformat(i)
+	    i += 2
+	  }
+	  svmNodes = svmNodes.reverse
+	  svmCols = svmCols.reverse
+	  svmReady = true
 	}
 }

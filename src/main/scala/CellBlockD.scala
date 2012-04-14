@@ -90,7 +90,11 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
      f(i) = fConns(i).combine(block2.getForward(i),dist,mutP,flipP,rnd,discardRate)
      r(i) = rConns(i).combine(block2.getRecurrent(i),dist,mutP,flipP,rnd,discardRate)
    }
-   val b2 = new CellBlockD(bias,f,r)
+   var bias2 = if (rnd.nextDouble < 0.5) { bias } else block2.bias
+   bias2 = bias2+{if (rnd.nextDouble < mutP) dist.inverse(rnd.nextDouble) else 0}
+   if (bias2 > 5) { bias2 = 5} else if (bias2 < -5) { bias2 = -5 }
+   val b2 = new CellBlockD(bias2,f,r)
+
    for (i <- 0 until 3) {
      if (rnd.nextDouble < 0.5) {
        b2.gateBits(i) = this.gateBits(i)

@@ -19,7 +19,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   def getInPop = inputPop
   def getBlockPop = blockPop
   def getOutPop = outputPop
-  
+  def getStateLength : Int = { blockPop(0)(0).getSize + outputs }
   //var mutProb = 0.1d
   //var flipProb = 0.01d
   var connProb = 0.5

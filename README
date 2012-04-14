@@ -25,6 +25,6 @@ jcommon-1.0.17.jar            jung-graph-impl-2.0.1.jar  scalala_2.9.1-1.0.0.RC3
 Of course eventually (after all the major bugs and performance issues have been fixed) a fully working and runnable jar file will be added for the convenience of users.
 
 Features:
--- Automatic saves periodically and when stopping the evolution provided they those options have been selected at configuration
+-- Automatic saves periodically and when stopping the evolution provided those options have been selected at configuration
 -- A method of restoring a saved population back into memory (also single networks)
 -- An experimental support for using support vector machine regression (mode: SVMBoost), provided by a minimally modified libsvm library included in the repository, has been added in order to boost the prediction performance in some situations in addition of least squares regression (mode: Evolino) implemented using the Scalala library.

@@ -131,9 +131,68 @@ object EvoLauncher {
     println("XML rep of RNN:")
     println(rnn.toXML)
   }
+  def testCombine3(num:Int) : (Boolean,Int) = {
+    var pass = true
+    var i = 0
+    val rnd = new MersenneTwisterFast
+    while (pass && i < num) {
+      val nc = new NeuralConnsD(0,20)
+      nc.addRandomConnections(5,rnd)
+      val nc2 = new NeuralConnsD(0,20)
+      nc2.addRandomConnections(6,rnd)
+      val nc3 = nc.combine3(nc2,new neurogenesis.util.CauchyDistribution(0.01),0.0,0.01,rnd,0)
+      for ((d,w) <- nc.getMap) {
+        if (!nc3.getMap.contains(d)) {
+          pass = false
+        }
+      }
+      for ((d,w) <- nc2.getMap) {
+        if (!nc3.getMap.contains(d)) {
+          pass = false
+        }
+      }
+      i += 1
+    }
+    (pass,i)
+  }
+  def testCombine1(num:Int) : (Boolean,Int) = {
+    var pass = true
+    var i = 0
+    val rnd = new MersenneTwisterFast
+    while (pass && i < num) {
+      val nc = new NeuralConnsD(0,20)
+      nc.addRandomConnections(5,rnd)
+      val nc2 = new NeuralConnsD(0,20)
+      nc2.addRandomConnections(6,rnd)
+      val nc3 = nc.combine(nc2,new neurogenesis.util.CauchyDistribution(0.01),0.0,0.01,rnd,0)
+      for ((d,w) <- nc.getMap) {
+        if (!nc3.getMap.contains(d)) {
+          pass = false
+        }
+      }
+      for ((d,w) <- nc2.getMap) {
+        if (!nc3.getMap.contains(d)) {
+          pass = false
+        }
+      }
+      i += 1
+    }
+    (pass,i)
+  }
   def main(args: Array[String]): Unit = {
     //debugRun2
-
+    /*
+    val time = System.currentTimeMillis()
+    println(time)
+    println("Test: "+testCombine3(5000))
+    println(System.currentTimeMillis()-time)
+    println("Test: "+testCombine1(5000))
+    println(System.currentTimeMillis()-time)
+    println("Test: "+testCombine3(5000))
+    println(System.currentTimeMillis()-time)
+    println("Test: "+testCombine1(5000))
+    println(System.currentTimeMillis()-time)
+    */
     val iface = new EvolverInterface
     iface.startup(new Array[String](0))
   }

@@ -28,7 +28,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var valTarget = List[Array[Double]]()
   */
   var dataSets = List[List[Array[Double]]]() // 0 training inputs, 1 training targets, 2 validation inputs, 3 validation targets...
-  var useCompression = true
+  var useCompression = true //Let's compress by default when saving the populations
   var cellPopulation = cellPop
   var netPopulation = netPop
   var actFun: Function1[Double,Double] = new SigmoidExp
@@ -38,14 +38,16 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var savePath = "./saves/"
   var printInfo = true
   var myId = id
-  var bestNets = new Array[RNND](5)
+  val maxBest = 5
+  var bestNets = new Array[RNND](maxBest)
   var lastBestFitness = 0d
   //var maxSteps = 5000
   var noImprovementCounter = 0
   var burstMutationFreq = 25
   var spawningFreq = 50
+  var spawned = false
   val freqIncrementFactor = 1.15
-  var rePopulator:Repopulator[CellPopulationD] = new BasicRepopulator
+  var cellRepopulator:Repopulator[CellPopulationD] = new BasicRepopulator
   var netRepopulator:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
   var mutateNow = false
   var updatingNow = false
@@ -65,9 +67,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setID(nid:Int) : Unit = { myId = nid }
   def setNetPop(np2:NetPopulationD) : Unit = { netPopulation = np2 }
   def setCellPop(cp2:CellPopulationD) : Unit = { cellPopulation = cp2 }
-  def setRepopulator(rp:Repopulator[CellPopulationD]) : Unit = { rePopulator = rp }
+  def setRepopulator(rp:Repopulator[CellPopulationD]) : Unit = { cellRepopulator = rp }
   def setNetRepopulator(nrp:NetRepopulator[NetPopulationD,CellPopulationD]) : Unit = { netRepopulator = nrp }
   def setDistribution(dist2:Distribution) : Unit = { distribution = dist2 }
+  def setSchedule(cs:CoolingSchedule) : Unit = {
+    schedule = cs
+  }
+  def setSavePath(path:String) : Unit = { savePath = path }
   def isRunning : Boolean = updatingNow
   def initMatrix : Unit = {
     matrix = NeuralOps.list2Matrix(dataSets.apply(1))
@@ -83,7 +89,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           //println("Evo"+myId+" Step: "+schedule.getCurrent)
           for (i <- 0 until netPopulation.getSize) {
             val rnn = netPopulation.getRNN(i)
-            if (evoMode < 2) {
+            if (evoMode < 2 || evoMode == 4) {
               val res = rnn.feedData(dataSets.apply(0),actFun)
               var mse = totalError(dataSets.apply(1),res)
               var fn = 10.0/mse
@@ -122,6 +128,19 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             }
           }
           netPopulation.sortPop
+          if (evoMode == 4) { //let's only use the best network for svm regression
+            val rnn = netPopulation.getRNN(netPopulation.getSize-1)
+            rnn.reset
+            val res = rnn.svmRegression(dataSets.apply(0),svmCols,actFun,svmPar,dataSets.apply(2))
+            val err = totalError(dataSets.apply(3),res)
+            if (!err.isNaN && err > 0) {
+               rnn.setFitness(100.0/err)
+            }
+            else {
+              rnn.setFitness(0.0)
+            }
+            netPopulation.sortPop
+          }
           val bestFitness = netPopulation.getBestFitness
           if (lastBestFitness < bestFitness) {
             lastBestFitness = bestFitness
@@ -140,7 +159,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           }
           //netPop.repopulate(distribution,mutProb,flipProb,rnd)
           if (!mutateNow) {
-            rePopulator.repopulate(cellPopulation,distribution,schedule,rnd,discardRate)
+            cellRepopulator.repopulate(cellPopulation,distribution,schedule,rnd,discardRate)
             /*
             if (evoMode == 0) {
               cellPopulation.repopulate(distribution,schedule,rnd)
@@ -167,7 +186,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             netPop.repopulate(cellPopulation)
           }
           */
-          if (spawnNow) {
+          if (!spawned && spawnNow) {
             val cPop2 = cellPopulation.complexify(false,rnd)
             val cPop3 = cellPopulation.complexify(true,rnd)
             val nPop2 = new NetPopulationD(cPop2)
@@ -184,16 +203,16 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             evo3.addDLists(dataSets)
             evo2.setSavePath(savePath)
             evo2.setSpawningFreq(spawningFreq)
-            evo2.setRepopulator(rePopulator)
+            evo2.setRepopulator(cellRepopulator)
             evo2.setNetRepopulator(netRepopulator)
             evo2.setSchedule(new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax))
             evo3.setEvoMode(evoMode)
             evo3.setSavePath(savePath)
             evo3.setSpawningFreq(spawningFreq)
-            evo3.setRepopulator(rePopulator)
+            evo3.setRepopulator(cellRepopulator)
             evo3.setNetRepopulator(netRepopulator)
             evo3.setSchedule(new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax))
-            if (evoMode == 3) {
+            if (evoMode >= 3) {
               evo2.initSVMLearner(svmNodes,svmCols,epsilonRegression)
               evo3.initSVMLearner(svmNodes,svmCols,epsilonRegression)
             }
@@ -202,6 +221,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             if (printInfo) {
               reporter ! ProgressMessage("Evolver id: "+myId+" spawning new NeuralEvolvers.")
             }
+            spawned = true
           }
           
           if (writeNow) {
@@ -239,6 +259,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             if (!fileName.exists) {
               saveEvolver(fileName)
             }
+            supervisor ! "Exiting"
+            exit()
+          }
+          else {
             supervisor ! "Exiting"
             exit()
           }
@@ -315,6 +339,15 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       idx -= 1
     }
     bestNets(idx2)
+  }
+  def getAllTheBest : List[RNND] = {
+    var lobn = List[RNND]()
+    for (i <- 0 until maxBest) {
+      if (bestNets(i) != null) {
+        lobn = lobn :+ (bestNets(i))
+      }
+    }
+    lobn
   }
   def meanSquaredError(a1:Array[Double],a2:Array[Double]) : Double = {
     var error = 0d
@@ -397,8 +430,6 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   //def setFlipProb(d:Double) : Unit = { flipProb0 = d }
   def setEvoMode(m:Int) : Unit = { evoMode = m }
   def spawnNow : Boolean = {
-    //(rnd.nextDouble > 0.80)
-    
     val b = (schedule.getCurrent % spawningFreq.toLong) == 0L
     if (b) {
       spawningFreq = (spawningFreq*freqIncrementFactor).toInt
@@ -513,17 +544,14 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     val x = <Parameters>{mp}{fp}</Parameters>
     x
   }
-  def setSchedule(cs:CoolingSchedule) : Unit = {
-    schedule = cs
-  }
-  def setSavePath(path:String) : Unit = { savePath = path }
+
   def getSimpleRepresentation : String = {
     val rep = new StringBuilder("NeuralEvolver:\n")
     rep.append("Learning Mode: "+evoMode+"\n")
     rep.append("Distribution: "+distribution.toString+"\n")
     rep.append("ActFun: "+actFun.toString+"\n")
     rep.append("Schedule: "+schedule.toString+"\n")
-    rep.append(rePopulator.toString)
+    rep.append(cellRepopulator.toString)
     rep.append()
     rep.toString
   }

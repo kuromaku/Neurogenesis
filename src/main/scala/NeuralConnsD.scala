@@ -19,6 +19,7 @@ class NeuralConnsD(min:Int,max:Int) {
 	var minNode = min
 	var maxNode = max
 	var conns:Map[Int,(Double,Boolean)] = new TreeMap[Int,(Double,Boolean)]()(Ordering.Int)
+	def getMap = conns
 	def getConns : Map[Int,Double] = {
 	  var tmap = Map[Int,Double]() //(conns
 	  for ((d,(w,b)) <- conns) {
@@ -97,6 +98,18 @@ class NeuralConnsD(min:Int,max:Int) {
 		}
 	}
 	def addMutatedConnection(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution,rnd:MersenneTwisterFast) : Boolean = {
+		var e = expr
+	    if (rnd.nextDouble < flipP) {
+		  e = !e
+		}
+		if (rnd.nextDouble < 0.02) {
+		  addConnection(d,rnd.nextDouble*2-1,e)
+		}
+		else {
+		  addConnection(d,w+dist.inverse(rnd.nextDouble),e)
+		}
+	}
+	def addMutatedConnection2(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution,rnd:MersenneTwisterFast) : Boolean = {
 		if (rnd.nextDouble < flipP) {
 		  addConnection(d,w+dist.inverse(rnd.nextDouble),!expr)
 		}
@@ -249,7 +262,328 @@ class NeuralConnsD(min:Int,max:Int) {
 		}
 		nc
 	}
-    def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double = 0.75) : NeuralConnsD = {
+	def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double = 0.75) : NeuralConnsD = {
+	  var nc = new NeuralConnsD(minNode,maxNode)
+	  val iter1 = conns.iterator
+	  val iter2 = nc2.getConns2
+	  var node = (0,(0.0,true))
+	  var node2ready = false
+	  var node1ready = false
+	  //var c = (0,(0.0,true))
+	  while (iter1.hasNext) {
+	    if (node1ready) {
+	      val (d,(w,b)) = node
+	      var lower = true
+	      var done = false
+	      while (lower && iter2.hasNext) {
+	        val (d2,(w2,b2)) = iter2.next
+	        if (d2 < d) {
+	          if (rnd.nextDouble > discardRate) {
+	            if (rnd.nextDouble < mutP) {
+	              nc.addMutatedConnection(d2,w2,b2,flipP,dist,rnd)
+	            }
+	            else {
+	              nc.addConnection(d2,w2,b2)
+	            }
+	          }
+	        }
+	        else if (d2 == d) {
+	          val (dx,(wx,bx)) = if (rnd.nextDouble < 0.5) (d,(w,b)) else (d2,(w2,b2))
+	          if (rnd.nextDouble < mutP) {
+	            nc.addMutatedConnection(dx,wx,bx,flipP,dist,rnd)
+	          }
+	          else {
+	            nc.addConnection(dx,wx,bx)
+	          }
+	          lower = false
+	          node1ready = false
+	          done = true
+	        }
+	        else {
+	          lower = false
+	          if (rnd.nextDouble > discardRate) {
+	            if (math.random < mutP) {
+	              nc.addMutatedConnection(d,w,b,flipP,dist,rnd)
+	            }
+	            else {
+	              nc.addConnection(d,w,b)
+
+	              //
+	            }
+	          }
+	          node = (d2,(w2,b2))
+	          node2ready = true
+	          node1ready = false
+	          done = true
+	        }
+	        
+
+	      }
+	      if (!done && !iter2.hasNext) {
+	        nc.addMutatedConnection(d,w,b,flipP,dist)
+			while (iter1.hasNext) {
+			val c = iter1.next
+			if (rnd.nextDouble > discardRate) {
+			  nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+			}
+		  }
+	      node1ready = false
+	      }
+	    }
+	    else if (node2ready) {
+	      val (d,(w,b)) = node
+	      var lower = true
+	      var done = false
+	      while (lower && iter1.hasNext) {
+	        val (d2,(w2,b2)) = iter1.next
+	        if (d2 < d) {
+	          if (rnd.nextDouble > discardRate) {
+	            if (scala.math.random < mutP) {
+	              nc.addMutatedConnection(d2,w2,b2,flipP,dist,rnd)
+	            }
+	            else {
+	              nc.addConnection(d2,w2,b2)
+	            }
+	          }
+	        }
+	        else if (d2 == d) {
+	          val (dx,(wx,bx)) = if (rnd.nextDouble < 0.5) (d,(w,b)) else (d2,(w2,b2))
+	          if (rnd.nextDouble < mutP) {
+	            nc.addMutatedConnection(dx,wx,bx,flipP,dist,rnd)
+	          }
+	          else {
+	            nc.addConnection(dx,wx,bx)
+	          }
+	          lower = false
+	          node2ready = false
+	          done = true
+	        }
+	        else {
+	          lower = false
+	          if (rnd.nextDouble > discardRate) {
+	            if (math.random < mutP) {
+	              nc.addMutatedConnection(d,w,b,flipP,dist,rnd)
+	            }
+	            else {
+	              nc.addConnection(d,w,b)
+	            }
+	          }
+	          node2ready = false
+	          node1ready = true
+	          node = (d2,(w2,b2))
+	          done = true
+	        }
+	      }
+	      if (!done && !iter1.hasNext) {
+		    nc.addMutatedConnection(d,w,b,flipP,dist)
+		    while (iter2.hasNext) {
+		      val c = iter2.next
+			  if (rnd.nextDouble > discardRate) {
+			    nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+			  }
+		    }
+		    node2ready = false
+	      }
+	    }
+	    else {
+	      node = iter1.next
+	      node1ready = true
+	    }
+	  }
+	  if (node2ready || node1ready) {
+		if (rnd.nextDouble > discardRate) {
+		  if (math.random < mutP) {
+	        nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  }
+		  else {
+		    nc.addConnection(node._1,node._2._1,node._2._2)
+		  }
+	    }
+			
+	  }
+	  while (iter2.hasNext) {
+	    node = iter2.next
+	    if (rnd.nextDouble > discardRate) {
+	      nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+	    }
+	  }
+	  //Let's add or remove a random connection every once in a while
+	  while (rnd.nextDouble < mutP) {
+	    if (rnd.nextDouble < 0.50) {
+	      nc.addRandomConnection(rnd)
+	    }
+	    else {
+	      nc.removeRandomConnection(rnd)
+	    }
+	  }
+	  nc
+	}
+	def combine3(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double = 0.75) : NeuralConnsD = {
+		var nc = new NeuralConnsD(minNode,maxNode)
+		//val discardRate = 0.5
+		val iter1 = conns.iterator
+		val iter2 = nc2.getConns2
+		var node = (0,(0.0,true))
+		var node2ready = false
+		var node1ready = false
+		var c = (0,(0.0,true))
+		while (iter1.hasNext) {
+		  if (node1ready) {
+		    c = node
+		    val k = c._1
+			var lower = true
+		    var done = false
+			while (lower && iter2.hasNext) {
+			  val c2 = iter2.next
+		      if (c2._1 < k) {
+		  	    if (rnd.nextDouble > discardRate) {
+				  nc.addMutatedConnection(c2._1,c2._2._1,c2._2._2,flipP,dist,rnd)
+			    }
+		      }
+			  else if (c2._1 == k) {
+				if (rnd.nextDouble < 0.5) {
+				  nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+				}
+				else {
+				  nc.addMutatedConnection(k,c2._2._1,c2._2._2,flipP,dist,rnd)
+				}
+				lower = false
+				node1ready = false
+				done = true
+				}
+			    else {
+				  lower = false
+				  if (rnd.nextDouble > discardRate) {
+					nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+				  }
+				  node = c2
+				  node2ready = true
+				  node1ready = false
+				  done = true
+				}
+					
+			}
+			if (!done && !iter2.hasNext) {
+		      nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist)
+			  while (iter1.hasNext && !node2ready) {
+				c = iter1.next
+				if (rnd.nextDouble > discardRate) {
+				  nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+				}
+			  }
+			}
+			else if (node1ready) {
+			  if (rnd.nextDouble > discardRate) {
+				nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+			  }
+			  node1ready = false
+			}
+		  }
+		  else if (node2ready) {
+		    c = iter1.next
+		    val k = c._1
+			if (k < node._1) {
+			  if (rnd.nextDouble > discardRate) {
+			    nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+			  }
+			}
+			else if (k == node._2._1) {
+			  if (Math.random < 0.5) {
+			    nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist,rnd)
+			  }
+			  else {
+			    nc.addMutatedConnection(k,node._2._1,node._2._2,flipP,dist,rnd)
+			  }
+			  node2ready = false
+			}
+			else {
+			  if (rnd.nextDouble > discardRate) {
+			    nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist,rnd)
+			  }
+			  node2ready = false
+			  node1ready = true
+			  node = c
+			}
+			  
+		    
+		  }
+		  else {
+		    c = iter1.next
+		    val k = c._1
+				var lower = true
+				var done = false
+				while (lower && iter2.hasNext) {
+					val c2 = iter2.next
+					if (c2._1 < k) {
+					  if (rnd.nextDouble > discardRate) {
+					    nc.addMutatedConnection(c2._1,c2._2._1,c2._2._2,flipP,dist,rnd)
+					  }
+					}
+					else if (c2._1 == k) {
+						if (Math.random < 0.5) {
+							nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+						}
+						else {
+							nc.addMutatedConnection(k,c2._2._1,c2._2._2,flipP,dist,rnd)
+						}
+						lower = false
+						node1ready = false
+						done = true
+					}
+					else {
+						lower = false
+						if (rnd.nextDouble > discardRate) {
+						  nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
+						}
+						node = c2
+						node2ready = true
+						node1ready = false
+						done = true
+					}
+					
+				}
+				if (!done && !iter2.hasNext) {
+				  nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist)
+				  while (iter1.hasNext && !node2ready) {
+				    c = iter1.next
+				    if (rnd.nextDouble > discardRate) {
+				      nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+				    }
+				  }
+				}
+				else if (node1ready) {
+				  if (rnd.nextDouble > discardRate) {
+				    nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
+				  }
+				  node1ready = false
+				}
+				
+			}
+		}
+		if (node2ready || node1ready) {
+		  if (rnd.nextDouble > discardRate) {
+		    nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  }
+			
+		}
+		while (iter2.hasNext) {
+		  node = iter2.next
+		  if (rnd.nextDouble > discardRate) {
+		    nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
+		  }
+		}
+		//Let's add or remove a random connection every once in a while
+		while (rnd.nextDouble < mutP) {
+		  if (rnd.nextDouble < 0.50) {
+		    nc.addRandomConnection(rnd)
+		  }
+		  else {
+		    nc.removeRandomConnection(rnd)
+		  }
+		}
+		nc
+	}
+    def combine2(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double = 0.75) : NeuralConnsD = {
 		var nc = new NeuralConnsD(minNode,maxNode)
 		//val discardRate = 0.5
 		val iter1 = conns.iterator

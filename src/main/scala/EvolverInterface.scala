@@ -3,7 +3,9 @@ package neurogenesis.doubleprecision
 import neurogenesis.msg._
 import neurogenesis.util._
 import java.util.zip.InflaterInputStream
+import java.util.zip.DeflaterOutputStream
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import scala.swing.SimpleSwingApplication
 import scala.swing._
 import scala.swing.FileChooser.SelectionMode
@@ -49,6 +51,7 @@ class EvolverInterface extends SimpleSwingApplication {
   var numThreads = 4
   var supervisor = new EvolutionSupervisor(reportArea,fitnessLabel,numThreads)
   var evolvers = List[NeuralEvolver]()
+  var restoredRNNs = List[RNND]()
   //var evolvers2 = List[NeuralEvolver[Float]]()
   val rnd = new MersenneTwisterFast(System.currentTimeMillis())//new Random
   var printInfo = false
@@ -216,6 +219,7 @@ class EvolverInterface extends SimpleSwingApplication {
         try {
           numThreads = threadsField.text.toInt
           reportArea.append("Number of concurrent Evolvers is now "+numThreads+"\n")
+          supervisor.setThreads(numThreads)
         } catch {
           case _ => reportArea.append("Could not parse that value.\n")
         }
@@ -295,7 +299,7 @@ class EvolverInterface extends SimpleSwingApplication {
   writeBestNet.enabled_=(false)
   var schedule:CoolingSchedule = new SimpleSchedule(mutProb,flipProb,maxSteps)
   val scheduleChooser = new ComboBox(Seq[String]("SimpleSchedule","AdaptiveSchedule"))
-  val modes = Seq[String]("Basic ESP","ESP+","Evolino","SVMBoost")
+  val modes = Seq[String]("Basic ESP","ESP+","Evolino","SVMBoost","SVMLite")
   val modeSelector = new ComboBox(modes)
   val repopulatorSelector = new ComboBox(Seq[String]("BasicRP","ComplexRP"))
   var startedBefore = false
@@ -399,6 +403,8 @@ class EvolverInterface extends SimpleSwingApplication {
           case "Basic ESP" => modeSelector.selection.index_=(0)
           case "ESP+" => modeSelector.selection.index_=(1)
           case "Evolino" => modeSelector.selection.index_=(2)
+          case "SVMBoost" => modeSelector.selection.index_=(3)
+          case "SVMLite" => modeSelector.selection.index_=(4)
           case _ => modeSelector.selection.index_=(0)
         }
       } catch {
@@ -555,6 +561,7 @@ class EvolverInterface extends SimpleSwingApplication {
     printInfo = printInfoSelector.selected
     supervisor.setPrintInfo(printInfo)
     supervisor.setSaveOnExit(saveOnExit)
+    //supervisor.setThreads(numThreads)
     val scheduleRep = scheduleChooser.selection.item
     var schedule:CoolingSchedule = new SimpleSchedule(mutProb,flipProb,maxSteps)
     var populator1:Repopulator[CellPopulationD] = new BasicRepopulator
@@ -568,7 +575,7 @@ class EvolverInterface extends SimpleSwingApplication {
       case "AdaptiveSchedule" => schedule = new AdaptiveSchedule(mutProb,flipProb,maxSteps)
       case _ => Unit
     }
-    if (modes.indexOf(modeSelector.selection.item) == 3) {
+    if (modes.indexOf(modeSelector.selection.item) >= 3) {
       //SVMBoost
       dworker.initSVM
     }
@@ -579,7 +586,7 @@ class EvolverInterface extends SimpleSwingApplication {
       allNets(i).init
       allEvolvers(i) = new NeuralEvolver(allPops(i),allNets(i),supervisor,1,supervisor.getReporter,rnd,discardRate)
       allEvolvers(i).addDLists(dworker.getDLists)
-      if (modes.indexOf(modeSelector.selection.item) == 3) {
+      if (modes.indexOf(modeSelector.selection.item) >= 3) {
         allEvolvers(i).initSVMLearner(dworker.getNodes(1),dworker.getCols(0),regressionMode)
       }
       allEvolvers(i).setActFun(actFun)
@@ -604,7 +611,7 @@ class EvolverInterface extends SimpleSwingApplication {
       allEvolvers(i).start
       supervisor.addEvolver(i,allEvolvers(i))
     }
-    supervisor.setThreads(numThreads)
+    //supervisor.setThreads(numThreads)
 	supervisor.start
 	supervisor ! "Start" //UpdateNow(0L)
 	writeBestNet.enabled_=(true)
@@ -617,6 +624,7 @@ class EvolverInterface extends SimpleSwingApplication {
       dworker.normalizeAll
     }
     supervisor.setSaveOnExit(saveOnExit)
+    //supervisor.setThreads(numThreads)
     reportArea.append("Starting evolution using restored populations.\n")
     var id = 0
     val scheduleRep = scheduleChooser.selection.item
@@ -641,7 +649,7 @@ class EvolverInterface extends SimpleSwingApplication {
       evolvers = evolvers.:+(evoX)
       reportArea.append("Added another mutated Evolver.\n")
     }
-    if (modes.indexOf(modeSelector.selection.item) == 3) {
+    if (modes.indexOf(modeSelector.selection.item) >= 3) {
       dworker.initSVM
     }
     for (e <- evolvers) {
@@ -650,7 +658,7 @@ class EvolverInterface extends SimpleSwingApplication {
       e.setBurstFreq(burstMutationFreq)
       e.setPrintInfo(printInfo)
       e.setEvoMode(modes.indexOf(modeSelector.selection.item))
-      if (modes.indexOf(modeSelector.selection.item) == 3) {
+      if (modes.indexOf(modeSelector.selection.item) >= 3) {
         e.initSVMLearner(dworker.getNodes(1),dworker.getCols(0),regressionMode)
       }
 
@@ -663,7 +671,7 @@ class EvolverInterface extends SimpleSwingApplication {
       supervisor.addEvolver(id,e)
       id += 1
     }
-    supervisor.setThreads(numThreads)
+    //supervisor.setThreads(numThreads)
     supervisor.start
     supervisor ! "Start"
     
@@ -708,42 +716,50 @@ class EvolverInterface extends SimpleSwingApplication {
 	val makePredictions = new MenuItem("Predict using best network") { enabled_=(false) }
 	val calculateValidationError = new MenuItem("Validate best solution") { enabled_=(false)}
 	val writeConfigNow = new MenuItem("Write Config")
+	val writeAllTheBestNets = new MenuItem("Save RNNs") { enabled_=(false) }
+	val restoreRNNs = new MenuItem("Read RNNs")
 	val configureNow = new MenuItem("Configure")
 
 	val readMatrix = new MenuItem("Read Matrix")
 	val readRNN = new MenuItem("Read RNN")
 	val readEvolver = new MenuItem("Read Evolver")
-	val autoSaveButton = new CheckMenuItem("AutoSave")
+	//val autoSaveButton = new CheckMenuItem("AutoSave")
 	val displayNet = new MenuItem("Display Best RNN") { enabled_=(false) }
 	val layoutSelector = new ComboBox(Seq[String]("FR","KK","ISOM","Spring"))
 	val layoutOK = new Button("Draw!")
 	val clearReportArea = new MenuItem("Clear Messages")
 	val clearData = new MenuItem("Clear data!") { enabled_=(false) }
 	val debugRun = new MenuItem("Test RNND") { enabled_=(false) }
+	
 	object gogo extends MenuItem("Go supervisor, go!") { 
 	  object goAction extends Action("Restart Supervisor!") {
 	    def apply : Unit = {
-	      supervisor ! UpdateNow(0)
+	      supervisor ! UpdateNow(0L)
 	    }
 	  }
 	  action_=(goAction)
 	}
+	
 	val writeBestPopulation = new MenuItem("Write Best Population!") { enabled_=(false) }
 	val lFrame = new Frame // used when selecting the layout of the net that will be displayed
+	/*
 	if (autoSave == 0) {
 	  autoSaveButton.selected_=(false)
 	}
 	else {
 	  autoSaveButton.selected_=(true)
 	}
+	*/
 	val mBar = new MenuBar() {
 	  contents += new Menu("File") {
 	    
 	    //contents += readMatrix
 	    contents += readRNN
 	    contents += readEvolver
+	    contents += restoreRNNs
 	    contents += new Separator
 	    contents += writeBestNet
+	    contents += writeAllTheBestNets
 	    contents += writeConfigNow
 	    contents += new Separator
 	    contents += clearData
@@ -782,7 +798,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	menuBar_=(mBar)
 	minimumSize_=(new Dimension(dimX,dimY))
 	listenTo(openFiles,start,stopEvolution,popSizeSlider,plotData,
-	    configureNow,writeConfigNow,readRNN,readEvolver,
+	    configureNow,writeConfigNow,readRNN,readEvolver,restoreRNNs,
 	    configurationReady,functionChooser,calculateValidationError,runSVMRegression,
 	    writeBestNet,displayNet,modeSelector,scheduleChooser,runLeastSquares,clearReportArea,
 	    makePredictions,clearData,repopulatorSelector,writeBestPopulation,debugRun)
@@ -841,13 +857,21 @@ class EvolverInterface extends SimpleSwingApplication {
 	      reportArea.append("Started with a fresh population.\n")
 	      start.enabled_=(false)
 	      writeBestPopulation.enabled_=(false)
+	      writeAllTheBestNets.enabled_=(false)
 	    }
 	    }
 	  }
 	  case ButtonClicked(`readEvolver`) => {
-	    val reval = fChooser.showOpenDialog(contents.first)
+	    val reval = fChooser.showOpenDialog(contents.head)
 	    if (reval.toString.equals("Approve")) {
 	      restoreEvolver(fChooser.selectedFile)
+	    }
+	  }
+	  case ButtonClicked(`restoreRNNs`) => {
+	    val reval = fChooser.showOpenDialog(contents.head)
+	    if (reval.toString.equals("Approve")) {
+	      val c = loadRNNs(fChooser.selectedFile)
+	      reportArea.append("Total number of restored networks: "+c+"\n")
 	    }
 	  }
 	  case ButtonClicked(`runLeastSquares`) => {
@@ -869,7 +893,7 @@ class EvolverInterface extends SimpleSwingApplication {
         svmParam.svm_type = svm_parameter.EPSILON_SVR
         svmParam.kernel_type = svm_parameter.RBF
         svmParam.degree = 3
-        svmParam.gamma = 1.0/6
+        svmParam.gamma = 1.0/(bestRNN.getMid(0).getNumOfCells+bestRNN.out)
         svmParam.coef0 = 0
         svmParam.nu = 0.5
         svmParam.cache_size = 100
@@ -905,7 +929,8 @@ class EvolverInterface extends SimpleSwingApplication {
 	      runSVMRegression.enabled_=(true)
 	    }
 	    runLeastSquares.enabled_=(true)
-	    
+	    writeAllTheBestNets.enabled_=(true)
+	    listenTo(writeAllTheBestNets)
 	  }
 	  case ButtonClicked(`clearData`) => {
 	    dworker.removeAllData
@@ -950,6 +975,15 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`writeBestNet`) => {
 	    writeSuperStar("superstar",true) //Write in XML
+	  }
+	  case ButtonClicked(`writeAllTheBestNets`) => {
+	    val bunch = supervisor.gatherBest
+	    if (writeAllRNNs(bunch)) {
+	      reportArea.append("Wrote the networks.\n")
+	    }
+	    else {
+	      reportArea.append("Did not write the networks because a previous save existed with the same name.\n")
+	    }
 	  }
 	  case ButtonClicked(`displayNet`) => {
 	    //displayBestNet using the Jung library but first creates a window used to choose the layout algorithm
@@ -1268,6 +1302,29 @@ class EvolverInterface extends SimpleSwingApplication {
       reportArea.append("Could not find any decent network to save.\n")
     }
   }
+  def writeAllRNNs(lRNN:List[RNND]) : Boolean = {
+    val f = new File(saveDirectory+"/allthebest.xml.zip")
+    if (!f.exists) {
+      val fout = new FileOutputStream(f)
+      val compressor = new DeflaterOutputStream(fout)
+      val tag = "<BestNets>".getBytes
+      compressor.write(tag,0,tag.length)
+      for (rnn <- lRNN) {
+        val rep = rnn.toXML.toString.getBytes
+        val rl = rep.length
+        compressor.write(rep,0,rl)
+      }
+      val etag = "</BestNets>".getBytes
+      compressor.write(etag,0,etag.length)
+      compressor.flush
+      compressor.close
+      fout.close
+      true
+    }
+    else {
+      false
+    }
+  }
   def graph2Img(g:SparseGraph[Int,String]) : Image = {
     val lOut = new FRLayout(g)
     lOut.initialize()
@@ -1288,6 +1345,40 @@ class EvolverInterface extends SimpleSwingApplication {
     displayWindow.pack()
     displayWindow.setVisible(true)
   }
+  def loadRNNs(file:File) : Int = {
+    val fIn = new FileInputStream(file)
+    val inflater = new InflaterInputStream(fIn)
+    var lb = List[Byte]()
+    val bl = 1024
+    var buffer = new Array[Byte](bl)
+    while (inflater.available == 1) {
+      val r = inflater.read(buffer,0,bl)
+      for (i <- 0 until r) {
+        lb = lb.+:(buffer(i))
+      }
+    }
+    inflater.close
+    fIn.close
+    val s = new java.lang.String(lb.reverse.toArray)
+    
+    /*
+    println("Length of the read string is: "+s.length)
+    for (i <- 0 until 256) {
+      println(s.charAt(i))
+    }
+    */
+    val xml = XML.loadString(s)
+    prettyPrint(xml)
+    var res = List[Node]()
+    xml\\"RNND" foreach{(entry) => res = res.+:(entry) }
+    var c = 0
+    for (net <- res) {
+      val rnn = RNND.fromXML(net)
+      restoredRNNs = restoredRNNs.:+(rnn)
+      c += 1
+    }
+    c
+  }
   def restoreEvolver(file:File) : Unit = {
     val fIn = new FileInputStream(file)
     val inflater = new InflaterInputStream(fIn) //
@@ -1300,6 +1391,8 @@ class EvolverInterface extends SimpleSwingApplication {
         lb = lb.+:(buffer(i))
       }
     }
+    inflater.close
+    fIn.close
     val s = new java.lang.String(lb.reverse.toArray)
     val xml = XML.loadString(s)
     val f = (xml \\ "Fitness").text.toDouble
@@ -1340,15 +1433,6 @@ class EvolverInterface extends SimpleSwingApplication {
       i += 60
     }
     reportArea.append(s.substring(i-60,s.length))
-  }
-  def fromXML0(e:Elem) : Unit = {
-    fromXML(e \\ "CellPopulation")
-  }
-  def fromXML(ns:NodeSeq) : Unit = {
-    val ip = ns \\ "InputPopulation"
-    for (n <- ip) {
-      println(n)
-    }
   }
 
 }

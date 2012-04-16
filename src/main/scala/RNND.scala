@@ -275,20 +275,22 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     fitness = f
   }
   def stimulate(actVal:Double,conn:NeuralConnsD) : Unit = {
-
-    for ((dest,w) <- conn.getConns) {
-      if (dest < in) {
-        inputLayer(dest).stimulate(w*actVal)
-      }
-      else if (dest < midPoint) {
-        val aux = dest - in
-        val numG = aux % synapses
-        val numB:Int = aux / synapses
-        cellBlocks(numB).stimulate(w*actVal,numG)
+    val cmap = conn.getMap
+    for ((dest,(w,expr)) <- cmap) {
+      if (expr) {
+        if (dest < in) {
+          inputLayer(dest).stimulate(w*actVal)
+        }
+        else if (dest < midPoint) {
+          val aux = dest - in
+          val numG = aux % synapses
+          val numB:Int = aux / synapses
+          cellBlocks(numB).stimulate(w*actVal,numG)
 	      
-      }
-      else {
-        outputLayer(dest-midPoint).stimulate(w*actVal)
+        }
+        else {
+          outputLayer(dest-midPoint).stimulate(w*actVal)
+        }
       }
     }
   }
@@ -352,7 +354,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   // SparseGraph[_ >: Nothing,_ >: Nothing]
   def toGraph :  SparseGraph[Int,String] = {
     val graph = new SparseGraph[Int,String]()
-    val totalNodes = midPoint + out + numBlocks*3 + in + out
+    val totalNodes = midPoint + out + numBlocks*3 + in + out //gates and all + extra nodes to mark inputs and outputs
     var idx = 0
     for (i <- 0 until totalNodes) {
       graph.addVertex(i)

@@ -20,7 +20,6 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   //var fitnessTable = List[(Double,NeuralEvolver)]()
   var maxGenerations = 10000L
   var counter = 1L
-  val goOn = "Evolve"
   var printInfo = true
   val reporter = new ProgressReporter(tArea)
   reporter.start
@@ -30,10 +29,12 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   var savePath = "./saves/"
   var exitCounter = 0
   var saveOnExit = saveWhenExiting
+  var running = false
   def act : Unit = {
     loop {
       react {
         case "Start" => {
+          running = true
           for (i <- 0 until evolvers.length) {
             evolvers(i)._1.start
           }
@@ -78,6 +79,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           while (idx < evolvers.length) {
             if (evolvers(idx)._1.myId == from) {
               evolvers(idx) = (evolvers(idx)._1,evolvers(idx)._2+1)
+              idx = evolvers.length
             }
             idx += 1
           }
@@ -115,6 +117,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
         }
         case "Exiting" => {
           exitCounter += 1
+          running = false
           if (exitCounter == evolvers.size) {
             if (printInfo) {
               reporter ! ProgressMessage("Supervisor says Goodbye!")
@@ -146,7 +149,12 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     e.start()
   }
   def getReporter : ProgressReporter = reporter
-  def setThreads(maxT:Int) : Unit = { maxThreads = maxT }
+  def setThreads(maxT:Int) : Unit = { 
+    maxThreads = maxT
+    if (!running) {
+      evolvers = new Array[(NeuralEvolver,Int)](maxThreads)
+    } 
+  }
   def setMaximumGenerations(g:Long) : Unit = { maxGenerations = g }
   def setPrintInfo(b:Boolean) : Unit = { printInfo = b }
   def processData : Unit = {
@@ -162,10 +170,11 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   }
   def reset : Unit = {
     evolvers = new Array[(NeuralEvolver,Int)](numThreads)
+    running = false
   }
   def getSuperStar : RNND = {
     var found = false
-    var idx = 4
+    //var idx = 4
     var best = evolvers(0)._1.getBest
     var bi = 1
     var f = 0.0
@@ -190,6 +199,16 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     for ((e,gen) <- evolvers) {
       e.setPrintInfo(b)
     }
+  }
+  def gatherBest : List[RNND] = {
+    var lobn = List[RNND]()
+    for ((e,c) <- evolvers) {
+      val bofe = e.getAllTheBest
+      if (bofe != List[RNND]()) {
+        lobn = lobn ++ bofe
+      }
+    }
+    lobn
   }
   def setSaveOnExit(b:Boolean) : Unit = { saveOnExit = b }
   def setSavePath(path:String) = savePath = path

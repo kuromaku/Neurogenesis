@@ -76,10 +76,12 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           //fitnessTable = fitnessTable.+:((bestFitness,from))
           
           var idx = 0
-          while (idx < evolvers.length) {
+          var found = false
+          while (idx < evolvers.length && !found) {
             if (evolvers(idx)._1.myId == from) {
               evolvers(idx) = (evolvers(idx)._1,evolvers(idx)._2+1)
               idx = evolvers.length
+              found = true
             }
             idx += 1
           }
@@ -148,6 +150,41 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     e.setPrintInfo(printInfo)
     e.start()
   }
+  def removeEvolver : Unit = {
+    var i = 0
+    var removed = false
+    while (i < evolvers.length/2 && !removed) {
+      val (e,g) = evolvers(evolvers.length-1-i)
+      val best = e.getBest
+      if (best != null) {
+        val f = best.getFitness
+        var j = evolvers.length/2
+        while (j < evolvers.length && !removed) {
+          val (e2,g2) = evolvers(evolvers.length-j)
+          if (e2.getBest.getFitness > f && g2 < g) {
+            e ! MakeExit(false)
+            val arr2 = new Array[(NeuralEvolver,Int)](evolvers.length-1)
+            for (k <- 0 until evolvers.length) {
+              if (k < i) {
+                arr2(k) = evolvers(k)
+              }
+              else if (k == i) {
+              
+              }
+              else {
+                arr2(k-1) = evolvers(k)
+              }
+            }
+            removed = true
+            evolvers = arr2
+            tArea.append("Supervisor dropped one obsolete Evolver.\n")
+          }
+          j += 1
+        }
+      }
+      i += 1
+    }
+  }
   def getReporter : ProgressReporter = reporter
   def setThreads(maxT:Int) : Unit = { 
     maxThreads = maxT
@@ -159,10 +196,15 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   def setPrintInfo(b:Boolean) : Unit = { printInfo = b }
   def processData : Unit = {
     runningThreads -= 1
-    evolvers = evolvers.sortWith(_._2 < _._2) //
-    if (evolvers.head._2 == counter) {
+    evolvers = evolvers.sortWith(_._2 < _._2) //ordered by how many steps they have already evolved
+    if (evolvers.head._2 == counter) { //add to counter only when all evolvers have reached this step
       counter += 1
       //println("Counter: "+counter)
+      if (counter % 33 == 0) {
+        if (evolvers.length > maxThreads) {
+          removeEvolver
+        }
+      }
       if (counter == maxGenerations) {
         this ! "Exit"
       }

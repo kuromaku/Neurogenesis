@@ -27,12 +27,12 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   //def setFlipProb(fp:Double) : Unit = { flipProb = fp }
   //val random = new MersenneTwisterFast
   
-  def init(scale:Double,outBias:Double,rnd:MersenneTwisterFast) : Unit = {
+  def init(scale:Double,outBias:Double,rnd:MersenneTwisterFast,numFor:Int=5,numRec:Int=3) : Unit = {
     val cDist = new CauchyDistribution(scale)
     val mid = inputs + blocks*4
     val total = mid+outputs
-    val numFor = 4
-    val numRec = 2
+    //val numFor = 4
+    //val numRec = 2
     for (i <- 0.until(inputs)) {
       inputPop(i) = new Array[InCellD](popSize)
       for (j <- 0.until(popSize)) {

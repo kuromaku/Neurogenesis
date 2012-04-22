@@ -20,11 +20,11 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	var data = List[List[Array[Double]]]()
 	var counter = 0
 	var normalizers = List[Array[(Double,Double)]]()
-	var extVals = List[List[(Double,Double)]]()
+	var extVals = List[List[(Double,Double)]]() //used to hold the extreme values which determine normalization factors
 	var normalized = false
 	var dimensionsAgree = true
 	var normalize = autoNormalize
-	var svmNodes = List[Array[Array[svm_node]]]() //null //used with libsvm
+	//var svmNodes = List[Array[Array[svm_node]]]() //null //used with libsvm
 	
 	var svmCols = List[Array[Array[Double]]]()
 	var svmReady = false
@@ -32,7 +32,7 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	def getCount : Int = counter
 	def getData(idx:Int) : List[Array[Double]] = data.apply(idx)
 	def normalizeData(b:Boolean) : Unit = { normalize = b }
-	def getNodes(idx:Int) = svmNodes.apply(idx)
+	//def getNodes(idx:Int) = svmNodes.apply(idx)
 	def getCols(idx:Int) = svmCols.apply(idx)
 	
 	def checkData : Unit = {
@@ -156,7 +156,7 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	  }
 	}
 	/*Normalizes all loaded data arrays so that the values lie between the range -1,1. 
-	 *Should be used only when all the data has been loaded into memory.
+	 *Should be used only when all the data has been loaded into memory as this ensures consistency.
 	*/
 	def normalizeAll : Unit = {
 	  if (!normalized) {
@@ -394,16 +394,17 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	def removeAllData : Unit = { 
 	  data = List[List[Array[Double]]]()
 	  normalizers = List[Array[(Double,Double)]]()
-	  svmNodes = List[Array[Array[svm_node]]]()
+	  //svmNodes = List[Array[Array[svm_node]]]()
 	  svmCols = List[Array[Array[Double]]]()
 	  svmReady = false
 	  counter = 0
 	}
 	def data2svmformat(idx:Int) : Unit = {
-	  val d = data.apply(idx)
+	  
 	  val t = data.apply(idx+1)
 	  var i = 0
 	  //val size = t.length
+	  /*val d = data.apply(idx)
 	  val cols = d(0).length
 	  val svmNodes2 = new Array[Array[svm_node]](d.size)
 	  for (row <- d) {
@@ -417,6 +418,7 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	    i += 1
 	  }
 	  i = 0
+	  */
 	  val l = t.size
 	  val svmCol = Array.ofDim[Double](t(0).length,l)
 	  
@@ -426,17 +428,32 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	    }
 	    i += 1
 	  }
-	  svmNodes = svmNodes.+:(svmNodes2)
+	  //svmNodes = svmNodes.+:(svmNodes2)
 	  svmCols = svmCols.+:(svmCol)
 	}
 	def initSVM : Unit = {
-	  var i = 0
-	  while (i < counter-1) {
-	    data2svmformat(i)
-	    i += 2
+	  if (!svmReady) {
+	    var i = 0
+	    while (i < counter-1) {
+	      data2svmformat(i)
+	      i += 2
+	    }
+	    //svmNodes = svmNodes.reverse
+	    svmCols = svmCols.reverse
+	    svmReady = true
 	  }
-	  svmNodes = svmNodes.reverse
-	  svmCols = svmCols.reverse
-	  svmReady = true
+	}
+	def generateData : Unit = {
+	  val generator = new DataGenerator
+	  val inData = generator.createInputData(1000)
+	  val outData = generator.createOutputData(inData)
+	  val (a,b) = inData.toList.splitAt(700)
+	  val (c,d) = outData.toList.splitAt(700)
+	  data = data.:+(a)
+	  data = data.:+(c)
+	  data = data.:+(b)
+	  data = data.:+(d)
+	  counter = 4
+	  normalized = true
 	}
 }

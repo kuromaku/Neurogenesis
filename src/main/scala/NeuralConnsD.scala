@@ -91,10 +91,10 @@ class NeuralConnsD(min:Int,max:Int) {
 	}
 	def addMutatedConnection(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution) : Boolean = {
 		if (scala.math.random < flipP) {
-		  addConnection(d,w+dist.inverse(Math.random),!expr)
+		  addConnection(d,w+dist.inverse(scala.math.random),!expr)
 		}
 		else {
-		  addConnection(d,w+dist.inverse(Math.random),expr)
+		  addConnection(d,w+dist.inverse(scala.math.random),expr)
 		}
 	}
 	def addMutatedConnection(d:Int,w:Double,expr:Boolean,flipP:Double,dist:Distribution,rnd:MersenneTwisterFast) : Boolean = {
@@ -168,7 +168,7 @@ class NeuralConnsD(min:Int,max:Int) {
 	def burstMutate2b(dist:Distribution) : Unit = {
 	  var c2 = new TreeMap[Int,(Double,Boolean)]()(Ordering.Int)
 	  for (conn <- conns) {
-	    c2 = c2 + ((conn._1,(conn._2._1+dist.inverse(Math.random),true)))
+	    c2 = c2 + ((conn._1,(conn._2._1+dist.inverse(scala.math.random),true)))
 	  }
 	  conns = c2
 	}
@@ -193,7 +193,7 @@ class NeuralConnsD(min:Int,max:Int) {
 			    nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist)
 			  }
 			  else if (k == node._2._1) {
-			    if (Math.random < 0.5) {
+			    if (scala.math.random < 0.5) {
 			      nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist)
 			    }
 			    else {
@@ -218,7 +218,7 @@ class NeuralConnsD(min:Int,max:Int) {
 						nc.addMutatedConnection(c2._1,c2._2._1,c2._2._2,flipP,dist)
 					}
 					else if (c2._1 == k) {
-						if (Math.random < 0.5) {
+						if (scala.math.random < 0.5) {
 							nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist)
 						}
 						else {
@@ -403,13 +403,13 @@ class NeuralConnsD(min:Int,max:Int) {
 	  }
 	  while (iter2.hasNext) {
 	    node = iter2.next
-	    if (rnd.nextDouble > discardRate) {
+	    if (math.random > discardRate) {
 	      nc.addMutatedConnection(node._1,node._2._1,node._2._2,flipP,dist)
 	    }
 	  }
 	  //Let's add or remove a random connection every once in a while
 	  while (rnd.nextDouble < mutP) {
-	    if (rnd.nextDouble < 0.50) {
+	    if (math.random < 0.50) {
 	      nc.addRandomConnection(rnd)
 	    }
 	    else {
@@ -488,7 +488,7 @@ class NeuralConnsD(min:Int,max:Int) {
 			  }
 			}
 			else if (k == node._2._1) {
-			  if (Math.random < 0.5) {
+			  if (scala.math.random < 0.5) {
 			    nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist,rnd)
 			  }
 			  else {
@@ -520,7 +520,7 @@ class NeuralConnsD(min:Int,max:Int) {
 					  }
 					}
 					else if (c2._1 == k) {
-						if (Math.random < 0.5) {
+						if (scala.math.random < 0.5) {
 							nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
 						}
 						else {
@@ -607,7 +607,7 @@ class NeuralConnsD(min:Int,max:Int) {
 			    }
 			  }
 			  else if (k == node._2._1) {
-			    if (Math.random < 0.5) {
+			    if (scala.math.random < 0.5) {
 			      nc.addMutatedConnection(c._1,c._2._1,c._2._2,flipP,dist,rnd)
 			    }
 			    else {
@@ -636,7 +636,7 @@ class NeuralConnsD(min:Int,max:Int) {
 					  }
 					}
 					else if (c2._1 == k) {
-						if (Math.random < 0.5) {
+						if (scala.math.random < 0.5) {
 							nc.addMutatedConnection(k,c._2._1,c._2._2,flipP,dist,rnd)
 						}
 						else {
@@ -760,15 +760,15 @@ class NeuralConnsD(min:Int,max:Int) {
 	  val c2 = nc2.getConns
 	  for ((dst,(w2,b)) <- conns) {
 	    if (c2.contains(dst)) {
-	      d += Math.abs(w2-c2.apply(dst))
+	      d += scala.math.abs(w2-c2.apply(dst))
 	    }
 	    else {
-	      d += Math.abs(w2)
+	      d += scala.math.abs(w2)
 	    }
 	  }
 	  for ((dst,w2) <- c2) {
 	    if (!conns.contains(dst)) {
-	      d += Math.abs(w2)
+	      d += scala.math.abs(w2)
 	    }
 	  }
 	  d

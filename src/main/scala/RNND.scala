@@ -154,12 +154,32 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   }
   def feedData(inputData:Traversable[Array[Double]],actFun:Function1[Double,Double]) : Array[Array[Double]] = {
     val output = new Array[Array[Double]](inputData.size)
-    var idx = 0
-    for (in <- inputData) {
-      output(idx) = activate(in,actFun)
-      idx += 1
-    }
+      var idx = 0
+      for (in <- inputData) {
+        output(idx) = activate(in,actFun)
+        idx += 1
+      }
     output
+    /*
+    if (limit > 0) {
+      val output = new Array[Array[Double]](limit)
+      var idx = 0
+      var rows = inputData.slice(0,limit)
+      for (r <- rows) {
+        output(idx) = activate(r,actFun)
+      }
+      output
+    }
+    else {
+      val output = new Array[Array[Double]](inputData.size)
+      var idx = 0
+      for (in <- inputData) {
+        output(idx) = activate(in,actFun)
+        idx += 1
+      }
+      output
+    }
+    */
   }
   def evolinoFeed(inputData:Traversable[Array[Double]],actFun:Function1[Double,Double]) : DenseMatrix[Double] = {
     val stateSize = out + numBlocks*blockSize
@@ -232,6 +252,18 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
 
   }
+  def linearPredict(inputData:Traversable[Array[Double]],inputData2:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double]) : Array[Array[Double]] = {
+    val M = linearRegression(inputData,targetMatrix,actFun)
+    val output0 = evolinoFeed(inputData2,actFun)
+    val Y = output0 * M
+    val res = Array.ofDim[Double](Y.numRows,Y.numCols)
+    for (i <- 0 until res.length) {
+      for (j <- 0 until res(i).length) {
+        res(i)(j) = Y.apply(i,j)
+      }
+    }
+    res
+  }
   def evolinoValidate(in2:Traversable[Array[Double]],out2:Traversable[Array[Double]],actFun:Function1[Double,Double],rMatrix:DenseMatrix[Double]) : Double = {
     var error = 0.0
     val output1 = evolinoFeed(in2,actFun)
@@ -239,7 +271,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     var idx = 0
     for (row <- out2) {
       for (j <- 0 until row.length) {
-        error += Math.pow(pred.apply(idx,j)-row(j),2)
+        error += scala.math.pow(pred.apply(idx,j)-row(j),2)
       }
       idx += 1
     }
@@ -354,7 +386,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   // SparseGraph[_ >: Nothing,_ >: Nothing]
   def toGraph :  SparseGraph[Int,String] = {
     val graph = new SparseGraph[Int,String]()
-    val totalNodes = midPoint + out + numBlocks*3 + in + out //gates and all + extra nodes to mark inputs and outputs
+    val totalNodes = midPoint + out// + numBlocks*3 //gates and all
     var idx = 0
     for (i <- 0 until totalNodes) {
       graph.addVertex(i)
@@ -364,8 +396,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       for ((dest,(w,b)) <- cnn) {
         if (b) {
           var ws = w.toString
-          if (ws.length > 4) {
-            ws = ws.substring(0,4)
+          if (ws.length > 6) {
+            ws = ws.substring(0,6)
           }
           graph.addEdge(idx+"f"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
@@ -375,8 +407,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       for ((dest,(w,b)) <- rnn) {
         if (b) {
           var ws = w.toString
-          if (ws.length > 4) {
-            ws = ws.substring(0,4)
+          if (ws.length > 6) {
+            ws = ws.substring(0,6)
           }
           graph.addEdge(idx+"r"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
@@ -389,8 +421,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         for ((dest,(w,b)) <- cnn) {
           if (b) {
             var ws = w.toString
-            if (ws.length > 4) {
-              ws = ws.substring(0,4)
+            if (ws.length > 6) {
+              ws = ws.substring(0,6)
             }
             graph.addEdge(idx+"f"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
@@ -400,8 +432,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         for ((dest,(w,b)) <- cnn2) {
           if (b) {
             var ws = w.toString
-            if (ws.length > 4) {
-              ws = ws.substring(0,4)
+            if (ws.length > 6) {
+              ws = ws.substring(0,6)
             }
             graph.addEdge(idx+"r"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
@@ -414,7 +446,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         if (cellBlocks(i).gateBits(j)) {
           for (k <- 0 until cellBlocks(i).getNumOfCells) {
             val m = in+i*synapses+j+synapses-3
-            graph.addEdge(idx+"g"+j+"c"+k,new Pair[Int](midPoint+out+i*nC+j,in+i*(nC+3)+k),EdgeType.DIRECTED)
+            graph.addEdge(idx+"g"+j+"c"+k,new Pair[Int](in+i*(synapses)+nC+j,in+i*(nC+3)+k),EdgeType.DIRECTED)
             idx += 1
           }
         }
@@ -434,6 +466,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         }
       }
     }
+    /*
     //Lets add extra nodes connected to inputs to indicate input nodes
     for (i <- (totalNodes-in-out) until (totalNodes-out)) {
       graph.addEdge("input"+(i-totalNodes+out),new Pair[Int](i-in,totalNodes-i-out),EdgeType.DIRECTED)
@@ -443,6 +476,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       graph.addEdge("output"+(midPoint+out-i),new Pair[Int](i,totalNodes-out+i-midPoint),EdgeType.DIRECTED)
       idx += 1
     }
+    */
     graph
   }
   /*Returns the state of this RNN which includes the activations of
@@ -459,6 +493,18 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       r(i) = outputLayer(i-midPoint).activation
     }
     r
+  }
+  def getSizes : Array[Int] = {
+    val a = new Array[Int](4)
+    a(0) = in; a(1) = numBlocks; a(2) = synapses - 3; a(3) = out
+    a
+  }
+  def getFitnessString : String = {
+    val fs = fitness.toString
+    if (fs.length > 7) {
+      fs.substring(0,7)
+    }
+    else fs
   }
 }
 object RNND {

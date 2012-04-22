@@ -3,6 +3,7 @@ package neurogenesis.util
 class AdaptiveSchedule(p1:Double,p2:Double,max:Long) extends CoolingSchedule {
   var mutProb = p1
   var flipProb = p2
+  val minDataUse = 500
   def update(f:Double): Unit = {
     var adjustment = Math.log(1/f)
     if (adjustment < 0.1) { adjustment = 0.1 }
@@ -12,7 +13,21 @@ class AdaptiveSchedule(p1:Double,p2:Double,max:Long) extends CoolingSchedule {
     flipProb = adjustment*p2*(max-step)/max
     step += 1
   }
-
+  def getFeedLength(idx:Int) : Int = {
+    val current = getCurrent.toInt
+    val m = minDataUse+current
+    if (m > dataSizes(idx)) {
+      dataSizes(idx)
+    }
+    else {
+      m
+    }
+  }
+  def makeClone : AdaptiveSchedule = {
+    val s2 = new AdaptiveSchedule(p1,p2,max)
+    s2.setSizes(dataSizes)
+    s2
+  }
   def getMax: Long = max
   //def clone : AdaptiveSchedule = new AdaptiveSchedule(p1,p2,max)
   override def toString : String = "AdaptiveSchedule (p1: "+p1.toString+",p2: "+p2.toString+")"

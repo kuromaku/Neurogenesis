@@ -34,16 +34,16 @@ class GraphWorker(method:String) extends Actor {
         case AnotherRNN(rnn) => {
           val graphRep = rnn.toGraph
           val img = graph2Img(graphRep)
-    
+          
           val displayWindow = new JFrame("Sketch of the best network found using layout: "+layoutMethod)
           //
-          displayWindow.setPreferredSize(new Dimension(640,480))
+          displayWindow.setPreferredSize(new Dimension(800,600))
           /*
           val displayPanel = new DisplayPanel(img)
           displayPanel.setBorder(new EtchedBorder)
           displayPanel.setPreferredSize(new Dimension(640,480))
           */
-          val vServer = new VisualizationViewer[Int,String](graph2Layout(graphRep))
+          val vServer = new VisualizationViewer[Int,String](graph2Layout(graphRep,rnn.getSizes))
           vServer.getRenderContext.setVertexLabelTransformer(new ToStringLabeller)
           vServer.getRenderContext.setEdgeLabelTransformer(new ToStringLabeller)
           vServer.getRenderer.getVertexLabelRenderer.setPosition(Position.CNTR)
@@ -74,18 +74,22 @@ class GraphWorker(method:String) extends Actor {
       case "Spring" => {
         lOut = new SpringLayout(g)
       }
-      case _ => lOut = new FRLayout(g)
+      case _ => lOut = new FRLayout(g)// RNNLayout(g,)
     }
     
     lOut.initialize()
     val imgServer = new VisualizationImageServer(lOut,new Dimension(640,480))
     imgServer.getImage(new Point(400,300),new Dimension(800,600))
   }
-  def graph2Layout(g:SparseGraph[Int,String]) : AbstractLayout[Int,String] = {
+  def graph2Layout(g:SparseGraph[Int,String],size:Array[Int]) : AbstractLayout[Int,String] = {
     //val fGraph = new SparseGraph[Int,String]()
     
     var lOut:AbstractLayout[Int,String] = null//new FRLayout(fGraph)
     layoutMethod match {
+      case "RNN" => {
+        val lo = new RNNLayout(g,size(0),size(1),size(2),size(3))
+        lOut = lo.getLayout(800,600)
+      }
       case "FR" => {
         lOut = new FRLayout(g)
       }
@@ -98,7 +102,10 @@ class GraphWorker(method:String) extends Actor {
       case "Spring" => {
         lOut = new SpringLayout(g)
       }
-      case _ => lOut = new FRLayout(g)
+      case _ => {
+        val lo = new RNNLayout(g,size(0),size(1),size(2),size(3))
+        lOut = lo.getLayout(800,600)
+      }
     }
     lOut.initialize()
     lOut

@@ -1,0 +1,32 @@
+package neurogenesis.util
+
+class DataGenerator {
+  def createInputData(num:Int) : Array[Array[Double]] = {
+    val r = Array.ofDim[Double](num,3)
+    for (i <- 0 until num) {
+      r(i)(0) = (0.5)*scala.math.sin(1.0*i/(num/7))+scala.math.random*0.2-0.1
+      r(i)(1) = (0.5)*scala.math.sin(1.0*i/(num/11))+scala.math.random*0.3-0.15
+      r(i)(2) = (0.5)*scala.math.cos(1.0*i/(num/17))+scala.math.random*0.5-0.25
+    }
+    r
+  }
+  def createOutputData(in:Array[Array[Double]]) : Array[Array[Double]] = {
+    var r = Array.ofDim[Double](in.length,2)
+    val num = in.length
+    for (i <- 0 until in.length) {
+      r(i)(0) = in(i)(1)/2+in(i)(2)/3
+      r(i)(1) = in(i)(0)-in(i)(2)
+    }
+    for (i <- 3 until in.length) {
+      if (in(i)(0) > 0) {
+        r(i)(0) += (0.5)*scala.math.sin(1.0*(i-3)/(num/7))
+      }
+      else {
+        r(i)(0) += (0.5)*scala.math.sin(1.0*(i-3)/(num/7))*0.3
+      }
+      r(i)(1) -= (0.5)*scala.math.sin(1.0*(i-1)/(num/11))-(0.5)*scala.math.cos(1.0*(i-2)/(num/17))
+    }
+    
+    r
+  }
+}

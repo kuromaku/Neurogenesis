@@ -19,7 +19,7 @@ import scalala.tensor.dense.DenseMatrix
 import scalala.library.random.MersenneTwisterFast
 import libsvm._
 
-class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,id:Int,reporter:ProgressReporter,rnd:MersenneTwisterFast,discardRate:Double=0.75) extends Actor {
+class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,reporter:ProgressReporter,rnd:MersenneTwisterFast,discardRate:Double=0.75) extends Actor {
   var proceed = true
   /*
   var inputData = List[Array[Double]]()
@@ -37,7 +37,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   //val rnd = new Random
   var savePath = "./saves/"
   var printInfo = true
-  var myId = id
+  var myId = 0//id
   val maxBest = 5
   var bestNets = new Array[RNND](maxBest)
   var lastBestFitness = 0d
@@ -53,13 +53,14 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var updatingNow = false
   //var obsolete = false
   var writeNow = false
-  var evoMode = 0 //which mode to use?
+  var learningMode = 0 //Basic ESP: 0, Evolino:2, SVMBoost:3, SVMLite: 4
   var fileName = new File("")
   var matrix:DenseMatrix[Double] = null
-  
+  var partialDataFeed = true
+  val minFeedLength = 200
   var svmPar:svm_parameter = null
   var svmCols: Array[Array[Double]] = null
-  var svmNodes:Array[Array[svm_node]] = null
+  //var svmNodes:Array[Array[svm_node]] = null
   var epsilonRegression = false
   
   def getCellPop : CellPopulationD = cellPopulation
@@ -74,37 +75,47 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     schedule = cs
   }
   def setSavePath(path:String) : Unit = { savePath = path }
+  def setUseFullDataFeed(b:Boolean) : Unit = { partialDataFeed = !b }
   def isRunning : Boolean = updatingNow
   def initMatrix : Unit = {
     matrix = NeuralOps.list2Matrix(dataSets.apply(1))
   }
   def act : Unit = {
-    if (evoMode == 2) {
+    if (learningMode == 2) {
       initMatrix
+    }
+    if (dataSets.apply(0).size < 1000) {
+      partialDataFeed = false
     }
     loop {
       react {
         case UpdateNow(step) => {
           updatingNow = true
           //println("Evo"+myId+" Step: "+schedule.getCurrent)
+          //TODO: Verify logic
+          val (d0,d1,d2,d3) = sliceData //slices datasets if only using partial data
+          if (partialDataFeed && learningMode == 2) {
+            matrix = NeuralOps.list2Matrix(d1)
+          }
           for (i <- 0 until netPopulation.getSize) {
             val rnn = netPopulation.getRNN(i)
-            if (evoMode < 2 || evoMode == 4) {
-              val res = rnn.feedData(dataSets.apply(0),actFun)
-              var mse = totalError(dataSets.apply(1),res)
-              var fn = 10.0/mse
+
+            if (learningMode < 2 || learningMode == 4) {
+              val res = rnn.feedData(d0,actFun)
+              var mse = totalError(d1,res)
+              var fn = 1.0/mse
               if (fn.isNaN()) {
                 fn = 0
               }
               rnn.setFitness(fn)
             }
-            else if (evoMode == 2) { //Evolino
-              val rM = rnn.linearRegression(dataSets.apply(0),matrix,actFun) //NeuralOps.list2Matrix(dataSets.apply(1))
+            else if (learningMode == 2) { //Evolino
+              val rM = rnn.linearRegression(d0,matrix,actFun) //NeuralOps.list2Matrix(dataSets.apply(1))
               if (rM != null) {
-                val err = rnn.evolinoValidate(dataSets.apply(2),dataSets.apply(3),actFun,rM)
+                val err = rnn.evolinoValidate(d2,d3,actFun,rM)
                 var fn = 1000000.0
                 if (err > 0.0) {
-                  fn = 100.0/err
+                  fn = 1.0/err
                 }
                 else if (err.isNaN) {
                   fn = 0
@@ -115,12 +126,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
                 rnn.setFitness(0)
               }
             }
-            else if (evoMode == 3) { //svm
-              val res = rnn.svmRegression(dataSets.apply(0),svmCols,actFun,svmPar,dataSets.apply(2))
-              val err = totalError(dataSets.apply(3),res)
+            else if (learningMode == 3) { //svm
+              val res = rnn.svmRegression(d0,svmCols,actFun,svmPar,d2)
+              val err = totalError(d3,res)
               
               if (!err.isNaN && err > 0) {
-                rnn.setFitness(100.0/err)
+                rnn.setFitness(1.0/err)
               }
               else {
                 rnn.setFitness(0.0)
@@ -128,18 +139,25 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             }
           }
           netPopulation.sortPop
-          if (evoMode == 4) { //let's only use the best network for svm regression
+          if (learningMode == 4) { //let's only use the best network for svm regression
             val rnn = netPopulation.getRNN(netPopulation.getSize-1)
             rnn.reset
-            val res = rnn.svmRegression(dataSets.apply(0),svmCols,actFun,svmPar,dataSets.apply(2))
-            val err = totalError(dataSets.apply(3),res)
+            val res = rnn.svmRegression(d0,svmCols,actFun,svmPar,d2)
+            val err = totalError(d3,res)
+            
             if (!err.isNaN && err > 0) {
-               rnn.setFitness(100.0/err)
+              val svmF = 1.0/err
+              var fs = svmF.toString
+              if (fs.length > 7) {
+                fs = fs.substring(0,7)
+              }
+              if (svmF > rnn.getFitness) { reporter ! ProgressMessage("SVM fitness: "+fs+" while without regression it is: "+rnn.getFitnessString) }
+               //rnn.setFitness(100.0/err)
             }
             else {
-              rnn.setFitness(0.0)
+              //rnn.setFitness(0.0)
             }
-            netPopulation.sortPop
+            //netPopulation.sortPop
           }
           val bestFitness = netPopulation.getBestFitness
           if (lastBestFitness < bestFitness) {
@@ -156,12 +174,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             if (noImprovementCounter % burstMutationFreq == 0) {
               mutateNow = true
             }
+            
           }
           //netPop.repopulate(distribution,mutProb,flipProb,rnd)
           if (!mutateNow) {
             cellRepopulator.repopulate(cellPopulation,distribution,schedule,rnd,discardRate)
             /*
-            if (evoMode == 0) {
+            if (learningMode == 0) {
               cellPopulation.repopulate(distribution,schedule,rnd)
             }
             else {
@@ -170,16 +189,16 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             */
           }
           else {
-            cellPopulation.burstMutate(schedule.getProb1*1.5,distribution,rnd)
+            cellPopulation.burstMutate(schedule.getProb1*1.1,distribution,rnd)
             mutateNow = false
             reporter ! ProgressMessage("Evolver id: "+myId+" undergoing burstmutation")
           }
           netRepopulator.repopulate(netPopulation,cellPopulation,bestNets,distribution,schedule,rnd,discardRate)
           /*
-          if (evoMode == 0 || (evoMode == 1 && !bestNetsReady)) {
+          if (learningMode == 0 || (learningMode == 1 && !bestNetsReady)) {
             netPop.repopulate(cellPopulation)
           }
-          else if (evoMode == 1 && bestNetsReady) {
+          else if (learningMode == 1 && bestNetsReady) {
             netPop.repopulate(cellPopulation,bestNets,distribution,schedule.getProb1,schedule.getProb2,rnd)
           }
           else {
@@ -193,28 +212,31 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             nPop2.init
             val nPop3 = new NetPopulationD(cPop3)
             nPop3.init
-            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,2*id,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
+            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
             //evo2.addData(inputData,outputData)
-            evo2.setEvoMode(evoMode)
+            evo2.setEvoMode(learningMode)
             
-            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,2*id+1,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
+            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
             //evo3.addData(inputData,outputData)
             evo2.addDLists(dataSets)
+            evo2.setActFun(actFun)
             evo3.addDLists(dataSets)
+            evo3.setActFun(actFun)
             evo2.setSavePath(savePath)
             evo2.setSpawningFreq(spawningFreq)
             evo2.setRepopulator(cellRepopulator)
             evo2.setNetRepopulator(netRepopulator)
-            evo2.setSchedule(new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax))
-            evo3.setEvoMode(evoMode)
+            evo2.setSchedule(schedule.makeClone)
+            evo3.setEvoMode(learningMode)
             evo3.setSavePath(savePath)
             evo3.setSpawningFreq(spawningFreq)
             evo3.setRepopulator(cellRepopulator)
             evo3.setNetRepopulator(netRepopulator)
-            evo3.setSchedule(new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax))
-            if (evoMode >= 3) {
-              evo2.initSVMLearner(svmNodes,svmCols,epsilonRegression)
-              evo3.initSVMLearner(svmNodes,svmCols,epsilonRegression)
+            evo3.setSchedule(schedule.makeClone)
+            //new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax)
+            if (learningMode >= 3) {
+              evo2.initSVMLearner(svmCols,epsilonRegression)//svmNodes,
+              evo3.initSVMLearner(svmCols,epsilonRegression)
             }
             supervisor ! BirthMessageD(evo2)
             supervisor ! BirthMessageD(evo3)
@@ -228,9 +250,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             write(fileName)
             writeNow = false
           }
-          
           supervisor ! StatusMessage(bestFitness,myId)
-          
           if (schedule.getCurrent == schedule.getMax) {
             //supervisor ! UpdateNow(schedule.getCurrent)
             supervisor ! "Exit"
@@ -283,7 +303,47 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   */
   def addDLists(dat:List[List[Array[Double]]]) : Unit = { dataSets = dataSets ++ dat }
   
-
+  def sliceData : (List[Array[Double]],List[Array[Double]],List[Array[Double]],List[Array[Double]]) = {
+    val (d0,d0b) = if (partialDataFeed) { 
+          dataSets.apply(0).splitAt(schedule.getFeedLength(0)) } 
+            else (dataSets.apply(0),null)
+    val (d1,d1b) = if (partialDataFeed) { 
+            dataSets.apply(1).splitAt(schedule.getFeedLength(1)) } 
+            else (dataSets.apply(1),null)
+    val d2:List[Array[Double]] = if (learningMode >=2 ) {
+            if (partialDataFeed) {
+              val d0bl = d0b.length
+              val d2l = schedule.getFeedLength(2)
+              if (d2l > d0bl) {
+                d0b ++ dataSets.apply(2).slice(0,d2l-d0bl)
+              }
+              else {
+                d0b.slice(0,d2l)
+              }
+            }
+            else {
+              dataSets.apply(2) 
+            }
+          }
+          else null
+   val d3:List[Array[Double]] = if (learningMode >=2 ) {
+            if (partialDataFeed) {
+              val d1bl = d1b.length
+              val d3l = schedule.getFeedLength(3)
+              if (d3l > d1bl) {
+                d1b ++ dataSets.apply(3).slice(0,d3l-d1bl)
+              }
+              else {
+                d1b.slice(0,d3l)
+              } 
+            }
+            else {
+              dataSets.apply(3)
+            }
+          }
+          else null
+    (d0,d1,d2,d3)
+  }
   def addToBestNets(net:RNND) : Boolean = {
     var emptySlot = false
     var emptyIdx = 0
@@ -354,12 +414,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     for (i <- 0 until a1.length) {
       error += scala.math.sqrt(scala.math.pow(a2(i)-a1(i),2))
     }
-    error = error
+    error = error/a1.length
     error
   }
   def totalError(a1:Array[Array[Double]],a2:Array[Array[Double]]) : Double = {
     var error = 0d
-    for (i <- 0 until a1.size) {
+    for (i <- 0 until a1.length) {
       error += meanSquaredError(a1(i),a2(i))
     }
     error = error/a1.length
@@ -372,7 +432,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       error += meanSquaredError(l,l0.head)
       l0 = l0.tail
     }
-    error
+    error/l1.size
   }
   def totalError(l1:List[Array[Double]],a2:Array[Array[Double]]) : Double = {
     var error = 0.0
@@ -381,7 +441,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       error += meanSquaredError(l,a2(idx))
       idx += 1
     }
-    error
+    error/l1.size
   }
   def totalError2(a1:List[Array[Double]],a2:Array[Array[Double]]) : Double = {
     var error = 0.0
@@ -392,7 +452,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       }
       idx += 1
     }
-    error
+    error/a1.length
   }
   def initParam(epsilon:Boolean) : Unit = {
     svmPar = new svm_parameter
@@ -417,9 +477,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     //svmPar.weight_label = new Array[Int](0)
     //svmPar.weight = new Array[Double](0)
   }
-  def initSVMLearner(nodes:Array[Array[svm_node]],tCols:Array[Array[Double]],epsilonR:Boolean) : Unit = {
+  def initSVMLearner(tCols:Array[Array[Double]],epsilonR:Boolean) : Unit = {
     initParam(epsilonR)
-    svmNodes = nodes
+    //svmNodes = nodes, nodes:Array[Array[svm_node]],
     svmCols = tCols
   }
   def setActFun(actFun2:Function1[Double,Double]) : Unit = { actFun = actFun2 }
@@ -428,7 +488,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setSpawningFreq(freq:Int) : Unit = { spawningFreq = freq }
   //def setMutationProb(d:Double) : Unit = { mutProb0 = d }
   //def setFlipProb(d:Double) : Unit = { flipProb0 = d }
-  def setEvoMode(m:Int) : Unit = { evoMode = m }
+  def setEvoMode(m:Int) : Unit = { learningMode = m }
   def spawnNow : Boolean = {
     val b = (schedule.getCurrent % spawningFreq.toLong) == 0L
     if (b) {
@@ -455,7 +515,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       tag.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
       fw.close
       /*
-      if (evoMode == 2) {
+      if (learningMode == 2) {
         val rM =
       }
       */
@@ -479,7 +539,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       netAsXML.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
       fw.close
       
-      if (evoMode == 2) {
+      if (learningMode == 2) {
         bestNets(idx).reset
         val rM = bestNets(idx).linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
         val fw2 = new FileOutputStream(f.getParent()+"weightMatrix.txt")
@@ -547,7 +607,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
 
   def getSimpleRepresentation : String = {
     val rep = new StringBuilder("NeuralEvolver:\n")
-    rep.append("Learning Mode: "+evoMode+"\n")
+    rep.append("Learning Mode: "+learningMode+"\n")
     rep.append("Distribution: "+distribution.toString+"\n")
     rep.append("ActFun: "+actFun.toString+"\n")
     rep.append("Schedule: "+schedule.toString+"\n")
@@ -588,4 +648,17 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     }
   }
 
+}
+object NeuralEvolver {
+  def makeEvolver(memoryBlocks:Int,memoryCells:Int,inputs:Int,outputs:Int,subpopSize:Int,distScale:Double,supervisor:EvolutionSupervisor,reporter:ProgressReporter) : NeuralEvolver = {
+    var cellPopulation = new CellPopulationD(inputs,memoryBlocks,outputs,subpopSize)
+    val rnd2 = new MersenneTwisterFast(System.currentTimeMillis)
+    cellPopulation.init(distScale,1,rnd2)
+    for (i <- 1 until memoryCells) {
+      cellPopulation = cellPopulation.complexify(false,rnd2)
+    }
+    val nPop = new NetPopulationD(cellPopulation)
+    nPop.init
+    new NeuralEvolver(cellPopulation,nPop,supervisor,reporter,rnd2)
+  }
 }

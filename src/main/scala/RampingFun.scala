@@ -8,4 +8,5 @@ class RampingFun extends Function1[Double, Double] {
     else
       x*s
   }
+  override def toString = "RampingFun"
 }

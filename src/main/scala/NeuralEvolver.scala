@@ -21,12 +21,6 @@ import libsvm._
 
 class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,reporter:ProgressReporter,rnd:MersenneTwisterFast,discardRate:Double=0.75) extends Actor {
   var proceed = true
-  /*
-  var inputData = List[Array[Double]]()
-  var outputData = List[Array[Double]]()
-  var valInput = List[Array[Double]]()
-  var valTarget = List[Array[Double]]()
-  */
   var dataSets = List[List[Array[Double]]]() // 0 training inputs, 1 training targets, 2 validation inputs, 3 validation targets...
   var useCompression = true //Let's compress by default when saving the populations
   var cellPopulation = cellPop
@@ -41,6 +35,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   val maxBest = 5
   var bestNets = new Array[RNND](maxBest)
   var lastBestFitness = 0d
+  var goodEnoughFitness = 100.0
   //var maxSteps = 5000
   var noImprovementCounter = 0
   var burstMutationFreq = 25
@@ -55,13 +50,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var writeNow = false
   var learningMode = 0 //Basic ESP: 0, Evolino:2, SVMBoost:3, SVMLite: 4
   var fileName = new File("")
-  var matrix:DenseMatrix[Double] = null
+  var matrix:DenseMatrix[Double] = null //Used only when the mode is set to Evolino
   var partialDataFeed = true
   val minFeedLength = 200
   var svmPar:svm_parameter = null
   var svmCols: Array[Array[Double]] = null
-  //var svmNodes:Array[Array[svm_node]] = null
-  var epsilonRegression = false
+  var epsilonRegression = false //Determines which SVM regression mode to use
   
   def getCellPop : CellPopulationD = cellPopulation
   def getNetPop : NetPopulationD = netPopulation
@@ -168,6 +162,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               reporter ! ProgressMessage("There was no progress for "+noImprovementCounter+" generations")
             }
             noImprovementCounter = 0
+            if (bestFitness >= goodEnoughFitness) {
+              supervisor ! AnotherRNN(netPopulation.getBestNet(bestFitness))
+              exit
+            }
           }
           else {
             noImprovementCounter += 1
@@ -213,31 +211,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             val nPop3 = new NetPopulationD(cPop3)
             nPop3.init
             val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
-            //evo2.addData(inputData,outputData)
-            evo2.setEvoMode(learningMode)
-            
+
             val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
-            //evo3.addData(inputData,outputData)
-            evo2.addDLists(dataSets)
-            evo2.setActFun(actFun)
-            evo3.addDLists(dataSets)
-            evo3.setActFun(actFun)
-            evo2.setSavePath(savePath)
-            evo2.setSpawningFreq(spawningFreq)
-            evo2.setRepopulator(cellRepopulator)
-            evo2.setNetRepopulator(netRepopulator)
-            evo2.setSchedule(schedule.makeClone)
-            evo3.setEvoMode(learningMode)
-            evo3.setSavePath(savePath)
-            evo3.setSpawningFreq(spawningFreq)
-            evo3.setRepopulator(cellRepopulator)
-            evo3.setNetRepopulator(netRepopulator)
-            evo3.setSchedule(schedule.makeClone)
-            //new SimpleSchedule(schedule.getProb1,schedule.getProb2,schedule.getMax)
-            if (learningMode >= 3) {
-              evo2.initSVMLearner(svmCols,epsilonRegression)//svmNodes,
-              evo3.initSVMLearner(svmCols,epsilonRegression)
-            }
+
+            configure(evo2)
+            configure(evo3)
+
             supervisor ! BirthMessageD(evo2)
             supervisor ! BirthMessageD(evo3)
             if (printInfo) {
@@ -302,7 +281,19 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   }
   */
   def addDLists(dat:List[List[Array[Double]]]) : Unit = { dataSets = dataSets ++ dat }
-  
+  def configure(e:NeuralEvolver) : Unit = {
+    e.addDLists(dataSets)
+    e.setActFun(actFun)
+    e.setSavePath(savePath)
+    e.setSpawningFreq(spawningFreq)
+    e.setRepopulator(cellRepopulator)
+    e.setNetRepopulator(netRepopulator)
+    e.setSchedule(schedule.makeClone)
+    e.setEvoMode(learningMode)
+    if (learningMode >= 3) {
+      e.initSVMLearner(svmCols,epsilonRegression)//svmNodes,
+    }
+  }
   def sliceData : (List[Array[Double]],List[Array[Double]],List[Array[Double]],List[Array[Double]]) = {
     val (d0,d0b) = if (partialDataFeed) { 
           dataSets.apply(0).splitAt(schedule.getFeedLength(0)) } 
@@ -646,6 +637,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       bestNets(idx) = RNND.fromXML(net)
       idx += 1
     }
+  }
+  def runDiagnostics : Int = {
+    val identical = cellPopulation.countEquals
+    identical
   }
 
 }

@@ -4,13 +4,17 @@ class AdaptiveSchedule(p1:Double,p2:Double,max:Long) extends CoolingSchedule {
   var mutProb = p1
   var flipProb = p2
   val minDataUse = 500
-  def update(f:Double): Unit = {
-    var adjustment = Math.log(1/f)
-    if (adjustment < 0.1) { adjustment = 0.1 }
-    else if (adjustment > 2.6) { adjustment = 2.6 }
+  def update(f:Double): Unit = { //test and modify later
+    var adjustment = if (f < 1.0 && f > 0.0) 3.0 else if (f >= 1.0) 3.0/f else 1.0
     
     mutProb = adjustment*p1*(max-step)/max
+    if (mutProb > 0.9) {
+      mutProb = 0.9
+    }
     flipProb = adjustment*p2*(max-step)/max
+    if (flipProb > 0.5) {
+      flipProb = 0.5
+    }
     step += 1
   }
   def getFeedLength(idx:Int) : Int = {

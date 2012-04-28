@@ -7,6 +7,8 @@ import scala.actors.Actor
 import scala.collection.immutable.Queue
 import scala.swing.TextArea
 import scala.swing.Label
+import scala.xml.XML
+import scala.xml.Elem
 import java.io.File
 //import scala.collection.mutable.LinkedList
 import scala.collection.mutable.ArrayOps
@@ -70,7 +72,9 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             */
             i += 1
           }
-
+          if (freeThreads) {
+            this ! UpdateNow(counter)
+          }
         }
         case StatusMessage(bestFitness,from) => {
           //fitnessTable = fitnessTable.+:((bestFitness,from))
@@ -110,7 +114,15 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           }
           this ! UpdateNow(counter)
         }
-        
+        case AnotherRNN(goodEnough) => {
+          reporter ! ProgressMessage("Found a network that seems good enough!!!")
+          reporter ! ProgressMessage(goodEnough.toXML.toString)
+          if (saveOnExit) {
+            save(goodEnough.toXML,goodEnough.getFitness.toString)
+            reporter ! ProgressMessage("Tried saving the result.")
+          }
+          this ! "Exit"
+        }
         case "Exit" => {
           for (e <- evolvers) {
             e._1 ! MakeExit(saveOnExit)
@@ -252,6 +264,20 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     }
     lobn
   }
+  def runDiagnostics : List[Int] = {
+    var ivals = List[Int]()
+    reporter ! ProgressMessage("Running diagnostics for "+evolvers.length+" evolvers")
+    
+    for (i <- 0 until evolvers.size) {
+      val (e,g) = evolvers(i)
+      reporter ! ProgressMessage("Running diagnostics for evolver number: "+e.myId)
+      ivals = ivals.+:(e.runDiagnostics)
+    }
+    ivals
+  }
   def setSaveOnExit(b:Boolean) : Unit = { saveOnExit = b }
   def setSavePath(path:String) = savePath = path
+  def save(e:Elem,fs:String) : Unit = {
+    XML.save(savePath+"best"+fs+".xml",e,"UTF-8",true)
+  }
 }

@@ -35,7 +35,7 @@ class GraphWorker(method:String) extends Actor {
           val graphRep = rnn.toGraph
           val img = graph2Img(graphRep)
           
-          val displayWindow = new JFrame("Sketch of the best network found using layout: "+layoutMethod)
+          val displayWindow = new JFrame("Sketch of a network found using layout: "+layoutMethod+" (fitness: "+rnn.getFitnessString+")")
           //
           displayWindow.setPreferredSize(new Dimension(800,600))
           /*

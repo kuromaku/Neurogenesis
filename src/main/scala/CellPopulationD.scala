@@ -535,17 +535,18 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     for (i <- 0 until (popSize-1)) {
       for (j <- (i+1) until popSize) {
         for (k <- 0 until inputs) {
-          if (inputPop(k)(i).equals(inputPop(k)(j))) {
+          if (inputPop(k)(i) == inputPop(k)(j)) {
             eCount += 1
+
           }
         }
         for (k <- 0 until blocks) {
-          if (blockPop(k)(i).equals(blockPop(k)(j))) {
+          if (blockPop(k)(i) == blockPop(k)(j)) {
             eCount += 1
           }
         }
         for (k <- 0 until outputs) {
-          if (outputPop(k)(i).equals(outputPop(k)(j))) {
+          if (outputPop(k)(i) == outputPop(k)(j)) {
             eCount += 1
           }
         }

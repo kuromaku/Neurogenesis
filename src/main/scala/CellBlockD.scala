@@ -16,7 +16,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  def activate : Array[Double] = {
    val actv = new Array[Double](numCells)
    for (i <- 0.to(numCells-1)) {
-     stims(i) = -2*tanh(stims(i)/2)
+     stims(i) = -2*math.tanh(stims(i)/2)
    }
    val gates = new Array[Double](3)
    for (i <- numCells until (numCells+3)) {
@@ -39,7 +39,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    for (i <- 0 until memState.length) {
      memState(i) = memState(i)*gates(1)+stims(i)*gates(0)
-     actv(i) = tanh(memState(i)*gates(2))
+     actv(i) = math.tanh(memState(i)*gates(2))
    }
    actv
  }
@@ -168,10 +168,16 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    else {
      for (i <- 0 until fConns.length) {
-       if (fConns(i) != other.getForward(i)) {
+       if (fConns(i) == other.getForward(i)) {
+         
+       }
+       else {
          false
        }
-       if (rConns(i) != other.getRecurrent(i)) {
+       if (rConns(i) == other.getRecurrent(i)) {
+         
+       }
+       else {
          false
        }
      }
@@ -214,11 +220,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  def stimulate(stimVal:Double,idx:Int) : Unit = {
    stims(idx) += stimVal
  }
- def tanh(x:Double) : Double = {
-   (Math.exp(2*x)-1)/(Math.exp(2*x)+1)
- }
  def sigmoidExp(x:Double) : Double = {
-   1/(1+Math.exp(-x))
+   1/(1+math.exp(-x))
  }
  override def toString : String = {
    var srep = "<CellBlockD>"

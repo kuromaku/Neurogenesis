@@ -14,7 +14,7 @@ import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
 import scalala.library.random.MersenneTwisterFast
 
-class NeuralConnsD(min:Int,max:Int) {
+class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
   //type T = Double
 	var minNode = min
 	var maxNode = max
@@ -38,7 +38,6 @@ class NeuralConnsD(min:Int,max:Int) {
 	    false
 	  }
 	  else {
-	    val maxVal = 3.0
 	    if (scala.math.abs(weight) < maxVal) {
 	      conns = conns + ((dest,(weight,true)))
 	    }
@@ -58,7 +57,6 @@ class NeuralConnsD(min:Int,max:Int) {
 	    false
 	  }
 	  else {
-	    val maxVal = 3.0
 	    if (scala.math.abs(weight) > maxVal) {
 	      if (weight < 0) {
 	        conns = conns + ((dest,(-maxVal,expr)))
@@ -66,14 +64,12 @@ class NeuralConnsD(min:Int,max:Int) {
 	      else {
 	        conns = conns + ((dest,(maxVal,expr)))
 	      }
-	    
 	    }
 	    else {
 	      conns = conns + ((dest,(weight,expr)))
 	    }
 	    true
 	  }
-
 	}
 	def addRandomConnection(rnd:MersenneTwisterFast) : Boolean = {
 		val dest = rnd.nextInt(maxNode-minNode)+minNode
@@ -777,16 +773,16 @@ class NeuralConnsD(min:Int,max:Int) {
 	  isEqualTo(other)
 	}
 	def isEqualTo(nc2:NeuralConnsD) : Boolean = {
-	  val iter = nc2.getConns2
 	  if (nc2.getConns.size != conns.size) {
 	    return false
 	  }
+	  val iter = nc2.getConns2
+
 	  while (iter.hasNext) {
-	    val node = iter.next
-	    val node2 = node._2
-	    if (conns.contains(node._1)) {
-	      val d = conns.apply(node._1)
-	      if (d._1 != node2._1 || d._2 != node2._2) {
+	    val (d,(w,b)) = iter.next
+	    if (conns.contains(d)) {
+	      val (w2,b2) = conns.apply(d)
+	      if (w != w2 || b != b2) {
 	        return false
 	      }
 	    }

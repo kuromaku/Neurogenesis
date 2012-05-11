@@ -46,6 +46,11 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : InCellD = {
     new InCellD(fConns.complexify(in,blocks,memCells,out,addBlock,rnd),rConns.complexify(in,blocks,memCells,out,addBlock,rnd))
   }
+  def distance(cell2:InCellD) : Double = {
+    val d1 = fConns.dist(cell2.getForward)
+    val d2 = rConns.dist(cell2.getRecurrent)
+    d1+d2
+  }
   def makeClone : InCellD = {
     val fw = getForward
     val rc = getRecurrent

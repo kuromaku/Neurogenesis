@@ -28,13 +28,13 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	
 	var svmCols = List[Array[Array[Double]]]()
 	var svmReady = false
-	
+	var normalMode = true
 	def getCount : Int = counter
 	def getData(idx:Int) : List[Array[Double]] = data.apply(idx)
 	def normalizeData(b:Boolean) : Unit = { normalize = b }
 	//def getNodes(idx:Int) = svmNodes.apply(idx)
 	def getCols(idx:Int) = svmCols.apply(idx)
-	
+	def setMode(b:Boolean) : Unit = { normalMode = b }
 	def checkData : Unit = {
 	  if (counter == 2) {
 	    if (data.head(0).length == data.tail.head(0).length) {
@@ -88,6 +88,9 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	          Plotting.plot(x2,y2,'-',"r")
 	          Plotting.hold(false)
 	        }
+	      }
+	      case "Exit" => {
+	        exit
 	      }
 	    }
 	  }
@@ -160,66 +163,81 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	*/
 	def normalizeAll : Unit = {
 	  if (!normalized) {
-	  val size = data.size
-	  val cols1 = data.apply(0).apply(0).length
-	  val cols2 = data.apply(1).apply(0).length
-	  val amax1 = new Array[Double](cols1)
-	  val amin1 = new Array[Double](cols1)
-	  var idx = 0
-	  while (idx < (size-1)) {
-	    val d = extVals.apply(idx)
-	    for (j <- 0 until cols1) {
-	      if (amin1(j) > d.apply(j)._1) {
-	        amin1(j) = d.apply(j)._1
-	      }
-	      if (amax1(j) < d.apply(j)._2) {
-	        amax1(j) = d.apply(j)._2
-	      }
-	    }
-	    idx += 2
-	  }
-	  val amax2 = new Array[Double](cols2)
-	  val amin2 = new Array[Double](cols2)
-	  idx = 1
-	  while (idx < size) {
-	    val d = extVals.apply(idx) 
-	      for (j <- 0 until cols2) {
-	        if (amin2(j) > d.apply(j)._1) {
-	          amin2(j) = d.apply(j)._1
-	        }
-	        if (amax2(j) < d.apply(j)._2) {
-	          amax2(j) = d.apply(j)._2
-	        }
-	      }
-	    idx += 2
-	  }
-	  idx = 0
-	  val wa = new Array[Double](cols1)
-	  val ma = new Array[Double](cols1)
-	  for (i <- 0 until cols1) { wa(i) = amax1(i)-amin1(i); ma(i) = amax1(i)+amin1(i) }
-	  
-	  while (idx < (size-1)) {
-	    val d = data.apply(idx)
-	    for (row <- d) {
+	    val size = data.size
+	    val cols1 = data.apply(0).apply(0).length
+	    val cols2 = data.apply(1).apply(0).length
+	    val amax1 = new Array[Double](cols1)
+	    val amin1 = new Array[Double](cols1)
+	    var idx = 0
+	    val addition = if (normalMode) 2 else 1
+	    while (idx < size) {
+	      val d = extVals.apply(idx)
 	      for (j <- 0 until cols1) {
-	        row(j) = (2*row(j)-ma(j))/wa(j)
+	        if (amin1(j) > d.apply(j)._1) {
+	         amin1(j) = d.apply(j)._1
+	        }
+	        if (amax1(j) < d.apply(j)._2) {
+	          amax1(j) = d.apply(j)._2
+	        }
+	      }
+	      idx += addition
+	    }
+	    if (normalMode) {
+	      val amax2 = new Array[Double](cols2)
+	      val amin2 = new Array[Double](cols2)
+	      idx = 1
+	      while (idx < size) {
+	        val d = extVals.apply(idx) 
+	        for (j <- 0 until cols2) {
+	          if (amin2(j) > d.apply(j)._1) {
+	            amin2(j) = d.apply(j)._1
+	          }
+	          if (amax2(j) < d.apply(j)._2) {
+	            amax2(j) = d.apply(j)._2
+	          }
+	        }
+	      idx += 2
+	      }
+	      idx = 0
+	      val wa = new Array[Double](cols1)
+	      val ma = new Array[Double](cols1)
+	      for (i <- 0 until cols1) { wa(i) = amax1(i)-amin1(i); ma(i) = amax1(i)+amin1(i) }
+	      while (idx < (size-1)) {
+	        val d = data.apply(idx)
+	        for (row <- d) {
+	          for (j <- 0 until cols1) {
+	            row(j) = (2*row(j)-ma(j))/wa(j)
+	          }
+	        }
+	        idx += 2
+	      }
+	      idx = 1
+	      val wa2 = new Array[Double](cols2)
+	      val ma2 = new Array[Double](cols2)
+	      for (i <- 0 until cols2) { wa2(i) = amax2(i)-amin2(i); ma2(i) = amax2(i)+amin2(i) }
+	      while (idx < size) {
+	        val d = data.apply(idx)
+	        for (row <- d) {
+	          for (j <- 0 until cols2) {
+	            row(j) = (2*row(j)-ma2(j))/wa2(j)
+	          }
+	        }
+	      idx += 2
 	      }
 	    }
-	    idx += 2
-	  }
-	  idx = 1
-	  val wa2 = new Array[Double](cols2)
-	  val ma2 = new Array[Double](cols2)
-	  for (i <- 0 until cols2) { wa2(i) = amax2(i)-amin2(i); ma2(i) = amax2(i)+amin2(i) }
-	  while (idx < size) {
-	    val d = data.apply(idx)
-	    for (row <- d) {
-	      for (j <- 0 until cols2) {
-	        row(j) = (2*row(j)-ma2(j))/wa2(j)
+	    else {
+	      val wa = new Array[Double](cols1)
+	      val ma = new Array[Double](cols1)
+	      for (i <- 0 until cols1) { wa(i) = amax1(i)-amin1(i); ma(i) = amax1(i)+amin1(i) }
+	      for (i <- 0 until size) {
+	        val d = data.apply(i)
+	        for (row <- d) {
+	          for (j <- 0 until cols1) {
+	            row(j) = (2*row(j)-ma(j))/wa(j)
+	          }
+	        }
 	      }
 	    }
-	    idx += 2
-	  }
 	  normalized = true
 	  }
 	}
@@ -394,7 +412,7 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	def removeAllData : Unit = { 
 	  data = List[List[Array[Double]]]()
 	  normalizers = List[Array[(Double,Double)]]()
-	  //svmNodes = List[Array[Array[svm_node]]]()
+	  extVals = List[List[(Double,Double)]]() 
 	  svmCols = List[Array[Array[Double]]]()
 	  svmReady = false
 	  counter = 0
@@ -403,22 +421,6 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	  
 	  val t = data.apply(idx+1)
 	  var i = 0
-	  //val size = t.length
-	  /*val d = data.apply(idx)
-	  val cols = d(0).length
-	  val svmNodes2 = new Array[Array[svm_node]](d.size)
-	  for (row <- d) {
-	    svmNodes2(i) = new Array[svm_node](cols)
-	    for (j <- 0 until cols) {
-	      val node = new svm_node
-	      node.index = j + 1
-	      node.value = row(j)
-	      svmNodes2(i)(j) = node
-	    }
-	    i += 1
-	  }
-	  i = 0
-	  */
 	  val l = t.size
 	  val svmCol = Array.ofDim[Double](t(0).length,l)
 	  

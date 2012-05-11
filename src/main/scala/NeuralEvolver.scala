@@ -28,14 +28,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var actFun: Function1[Double,Double] = new SigmoidExp
   var distribution:Distribution = new CauchyDistribution(0.05)
   var schedule: CoolingSchedule = new SimpleSchedule(0.05,0.02,50000)
-  //val rnd = new Random
   var savePath = "./saves/"
   var printInfo = true
   var myId = 0//id
   val maxBest = 5
   var bestNets = new Array[RNND](maxBest)
   var lastBestFitness = 0d
-  var goodEnoughFitness = 100.0
+  var goodEnoughFitness = 100.0 //used to determine when to stop evolution
   //var maxSteps = 5000
   var noImprovementCounter = 0
   var burstMutationFreq = 25
@@ -46,19 +45,19 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var netRepopulator:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
   var mutateNow = false
   var updatingNow = false
-  //var obsolete = false
   var writeNow = false
   var learningMode = 0 //Basic ESP: 0, Evolino:2, SVMBoost:3, SVMLite: 4
   var fileName = new File("")
   var matrix:DenseMatrix[Double] = null //Used only when the mode is set to Evolino
   var partialDataFeed = true
-  val minFeedLength = 200
+  val minFeedLength = 1000
   var svmPar:svm_parameter = null
   var svmCols: Array[Array[Double]] = null
   var epsilonRegression = false //Determines which SVM regression mode to use
   
   def getCellPop : CellPopulationD = cellPopulation
   def getNetPop : NetPopulationD = netPopulation
+  def getMemorySize : (Int,Int) = { (cellPopulation.getBlocks,cellPopulation.getStateLength) }
   def setID(nid:Int) : Unit = { myId = nid }
   def setNetPop(np2:NetPopulationD) : Unit = { netPopulation = np2 }
   def setCellPop(cp2:CellPopulationD) : Unit = { cellPopulation = cp2 }
@@ -78,7 +77,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     if (learningMode == 2) {
       initMatrix
     }
-    if (dataSets.apply(0).size < 1000) {
+    if (dataSets.apply(0).size < minFeedLength) {
       partialDataFeed = false
     }
     loop {
@@ -172,6 +171,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             if (noImprovementCounter % burstMutationFreq == 0) {
               mutateNow = true
             }
+            else if (noImprovementCounter % (burstMutationFreq-7) == 0) {
+              val rnn = bestNets(rnd.nextInt(bestNets.length))
+              if (rnn != null) {
+                cellPopulation.injectCells(rnn)
+              }
+            }
             
           }
           //netPop.repopulate(distribution,mutProb,flipProb,rnd)
@@ -189,7 +194,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           else {
             cellPopulation.burstMutate(schedule.getProb1*1.1,distribution,rnd)
             mutateNow = false
-            reporter ! ProgressMessage("Evolver id: "+myId+" undergoing burstmutation")
+            if (printInfo) {
+              reporter ! ProgressMessage("Evolver id: "+myId+" undergoing burstmutation")
+            }
           }
           netRepopulator.repopulate(netPopulation,cellPopulation,bestNets,distribution,schedule,rnd,discardRate)
           /*
@@ -217,8 +224,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             configure(evo2)
             configure(evo3)
 
-            supervisor ! BirthMessageD(evo2)
-            supervisor ! BirthMessageD(evo3)
+            supervisor ! BirthMessageD(evo2,evo3)
+            //supervisor ! BirthMessageD()
             if (printInfo) {
               reporter ! ProgressMessage("Evolver id: "+myId+" spawning new NeuralEvolvers.")
             }
@@ -232,7 +239,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           supervisor ! StatusMessage(bestFitness,myId)
           if (schedule.getCurrent == schedule.getMax) {
             //supervisor ! UpdateNow(schedule.getCurrent)
-            supervisor ! "Exit"
+            supervisor ! "Exiting"
             exit
           }
           schedule.update(netPopulation.getBestFitness)
@@ -270,16 +277,6 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     }
 
   }
-  /*
-  def addData(inDat:List[Array[Double]],tgtDat:List[Array[Double]]) : Unit = {
-    inputData = inDat
-    outputData = tgtDat
-  }
-  def addData2(inDat2:List[Array[Double]],tgtDat:List[Array[Double]]) : Unit = {
-    valInput = inDat2
-    valTarget = tgtDat
-  }
-  */
   def addDLists(dat:List[List[Array[Double]]]) : Unit = { dataSets = dataSets ++ dat }
   def configure(e:NeuralEvolver) : Unit = {
     e.addDLists(dataSets)
@@ -473,6 +470,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     //svmNodes = nodes, nodes:Array[Array[svm_node]],
     svmCols = tCols
   }
+  def mixPopulations(evolver2:NeuralEvolver,mixProb:Double) : Unit = {
+    cellPop.mixPopulations(evolver2.getCellPop, mixProb)
+  }
   def setActFun(actFun2:Function1[Double,Double]) : Unit = { actFun = actFun2 }
   def setBurstFreq(freq:Int) : Unit = { burstMutationFreq = freq }
   def setPrintInfo(b:Boolean) : Unit = { printInfo = b }
@@ -638,9 +638,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       idx += 1
     }
   }
-  def runDiagnostics : Int = {
+  def runDiagnostics : (Int,Double) = {
     val identical = cellPopulation.countEquals
-    identical
+    (identical,cellPopulation.calculateDiversity)
   }
 
 }

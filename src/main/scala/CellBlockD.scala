@@ -162,6 +162,14 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
      b2
    }
  }
+ def distance(block2:CellBlockD) : Double = {
+   var d = 0.0
+   for (i <- 0 until numCells) {
+     d += fConns(i).dist(block2.getForward(i))
+     d += rConns(i).dist(block2.getRecurrent(i))
+   }
+   d
+ }
  def equals(other:CellBlockD) : Boolean = {
    if (bias != other.bias) {
      false

@@ -60,7 +60,8 @@ class NetPopulationD(cPop:CellPopulationD) {
   def getRNN(idx:Int) : RNND = netPop(idx)
   def getBestNet(f:Double) : RNND = {
     if (sorted) {
-      return netPop(netPop.length-1)
+      val bc = netPop(netPop.length-1)
+      if (bc != null) return bc 
     }
     var idx = 0
     while (idx < netPop.length) {
@@ -73,10 +74,19 @@ class NetPopulationD(cPop:CellPopulationD) {
   } 
   def getSize = netPop.length
   
+  def calculateDiversity : Double = {
+    var d = 0.0
+    for (i <- 0 until netPop.length - 1) {
+      for (j <- i+1 until netPop.length) {
+        d += netPop(i).distance(netPop(j))
+      }
+    }
+    d/(getSize*(getSize+1)/2)
+  }
   def permute(l:Int) : Array[Int] = {
     val idx = new Range(0,l,1).toArray
     for (i <- 0.until(l)) {
-      val j = (Math.random*l).toInt
+      val j = (math.random*l).toInt
       val aux = idx(i)
       idx(i) = idx(j)
       idx(j) = aux

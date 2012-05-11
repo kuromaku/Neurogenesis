@@ -11,7 +11,6 @@ class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] 
     val flipProb = schedule.getProb2
     val popSize = pop.getSize
     val h = (deathRate*popSize).toInt
-    //var ipop = new Array[Array[InCellD]](inputs) 
     val inputs = pop.getIn
     val inputPop = pop.getInPop
     
@@ -19,11 +18,6 @@ class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] 
     for (i <- 0 until inputs) {
       inputPop(i) = inputPop(i).sortWith(_.getFitness < _.getFitness)
       val nextGen = new Array[InCellD](popSize)
-      /*
-      for (j <- 0 until popSize) {
-        nextGen(j) = inputPop(i)(j).makeClone
-      }
-      */
       val fArray = pop.getCDF(inputPop(i)) //
       for (k <- 0 until h) {
         var idx1 = pop.getIDX(rnd.nextDouble,fArray)

@@ -34,6 +34,9 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
     val nc = new OutCellD(bias,rConns.complexify(in,blocks,memCells,out,addBlock,rnd))
     nc
   }
+  def distance(ocell2:OutCellD) : Double = {
+    rConns.dist(ocell2.getRecurrent)
+  }
   def makeClone : OutCellD = {
     new OutCellD(bias,rConns.makeClone)
   }

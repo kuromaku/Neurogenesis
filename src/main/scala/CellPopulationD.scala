@@ -278,6 +278,36 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       cPop
     }
   }
+  def calculateDiversity : Double = {
+    var d0 = 0.0
+    for (i <- 0 until inputs) {
+      for (j <- 0 until popSize-1) {
+        for (k <- j+1 until popSize) {
+          d0 += inputPop(i)(j).distance(inputPop(i)(k))
+        }
+      }
+    }
+    d0 /= (popSize*(popSize-1)*inputs/2)
+    var d1 = 0.0
+    for (i <- 0 until blocks) {
+      for (j <- 0 until popSize-1) {
+        for (k <- j+1 until popSize) {
+          d1 += blockPop(i)(j).distance(blockPop(i)(k))
+        }
+      }
+    }
+    d1 /= (blocks*popSize*(popSize-1)/2)
+    var d2 = 0.0
+    for (i <- 0 until outputs) {
+      for (j <- 0 until popSize-1) {
+        for (k <- j+1 until popSize) {
+          d2 += outputPop(i)(j).distance(outputPop(i)(k))
+        }
+      }
+    }
+    d2 /= (popSize*(popSize-1)*outputs/2)
+    d0+d1+d2
+  }
   def update(rnd:MersenneTwisterFast) : Unit = {
 
   }
@@ -553,6 +583,80 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
     }
     eCount
+  }
+  /*Inject cells from a given RNND into this CellPopulation
+   * 
+   */
+  def injectCells(rnn:RNND) : Unit = {
+    var equalFound = false
+    for (i <- 0 until inputs) {
+      val cell = rnn.getIn(i)
+      
+      for (j <- 0 until inputs) {
+        if (cell == inputPop(i)(j)) {
+          equalFound = true
+        }
+      }
+      if (!equalFound) {
+        inputPop(i)(0) = cell.makeClone
+      }
+    }
+    for (i <- 0 until blocks) {
+      val block = rnn.getMid(i)
+      equalFound = false
+      for (j <- 0 until blocks) {
+        if (block == blockPop(i)(j)) {
+          equalFound = true
+        }
+      }
+      if (!equalFound) {
+        blockPop(i)(0) = block
+      }
+    }
+    for (i <- 0 until outputs) {
+      val outcell = rnn.getOut(i)
+      equalFound = false
+      for (j <- 0 until outputs) {
+        if (outcell == outputPop(i)(j)) {
+          equalFound = true
+        }
+      }
+      if (!equalFound) {
+        outputPop(i)(0) = outcell
+      }
+    }
+  }
+  def mixPopulations(pop2:CellPopulationD,mixProb:Double) : Unit = {
+    val inCells2 = pop2.getInPop
+    for (i <- 0 until inputs) {
+      for (j <- 0 until popSize) {
+        if (scala.math.random < mixProb) {
+          val aux = inCells2(i)(j)
+          inCells2(i)(j) = inputPop(i)(j).makeClone
+          inputPop(i)(j) = aux
+        }
+      }
+    }
+    val blocks2 = pop2.getBlockPop
+    for (i <- 0 until blocks) {
+      for (j <- 0 until popSize) {
+        if (scala.math.random < mixProb) {
+          val aux = blocks2(i)(j)
+          blocks2(i)(j) = blockPop(i)(j).makeClone
+          blockPop(i)(j) = aux
+        }
+      }
+    }
+    val outCells2 = pop2.getOutPop
+    for (i <- 0 until outputs) {
+      for (j <- 0 until popSize) {
+        if (scala.math.random < mixProb) {
+          val aux = outCells2(i)(j)
+          outCells2(i)(j) = outputPop(i)(j).makeClone
+          outputPop(i)(j) = aux
+        }
+      }
+    }
   }
   /*
   def readOutCell(xml:Elem) : OutCellD = {

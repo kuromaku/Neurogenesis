@@ -4,6 +4,7 @@ import scalala.library.random.MersenneTwisterFast
 import scala.xml.Elem
 import scala.xml.NodeSeq
 import scala.xml.TopScope
+
 import scalala.tensor.dense.DenseMatrix
 import scalala.tensor.mutable.Matrix
 import edu.uci.ics.jung.graph.SparseGraph
@@ -151,6 +152,24 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       ol(i) = outputLayer(i).combine(net2.getOut(i),dist,mutP,flipP,rnd,discardRate)
     }
     new RNND(il,bl,ol)
+  }
+  def distance(net2:RNND) : Double = {
+    var di = 0.0
+    for (i <- 0 until in) {
+      di += inputLayer(i).distance(net2.getIn(i))
+    }
+    di /= in
+    var db = 0.0
+    for (i <- 0 until numBlocks) {
+      db += cellBlocks(i).distance(net2.getMid(i))
+    }
+    db /= numBlocks
+    var d2 = 0.0
+    for (i <- 0 until out) {
+      d2 += outputLayer(i).distance(net2.getOut(i))
+    }
+    d2 /= out
+    di+db+d2
   }
   def feedData(inputData:Traversable[Array[Double]],actFun:Function1[Double,Double]) : Array[Array[Double]] = {
     val output = new Array[Array[Double]](inputData.size)
@@ -506,6 +525,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     else fs
   }
+  
 }
 object RNND {
   /*

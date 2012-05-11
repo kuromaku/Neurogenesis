@@ -22,17 +22,13 @@ import scalala.generic.collection.CanViewAsTensor1._
 import javax.swing.border._
 import edu.uci.ics.jung.graph.SparseGraph
 import edu.uci.ics.jung.io.GraphMLWriter
-//import edu.uci.ics.jung.algorithms.layout.CircleLayout
 import edu.uci.ics.jung.algorithms.layout.FRLayout
 import edu.uci.ics.jung.visualization.VisualizationImageServer
 import edu.uci.ics.jung.visualization.VisualizationViewer
 import java.awt.Image
-import java.awt.image.RenderedImage
-import java.awt.Point
+//import java.awt.image.RenderedImage
+//import java.awt.Point
 import javax.imageio.ImageIO
-import java.awt.Graphics2D
-import javax.swing.JFrame
-import javax.swing.JPanel
 import scalala.library.random.MersenneTwisterFast
 import libsvm.svm_parameter
 import libsvm.svm_node
@@ -75,6 +71,7 @@ class EvolverInterface extends SimpleSwingApplication {
   var autoSave = 500
   var autoSaveBackup = 500
   var maxSteps = 10000L
+  
   var saveOnExit = false
   var actFun: Function1[Double,Double] = new OutFun
   var dimX = 540
@@ -205,6 +202,43 @@ class EvolverInterface extends SimpleSwingApplication {
       }
     }
     action_=(freqAction)
+  }
+  var mixingFreq = 50
+  object mixingFreqField extends TextField(mixingFreq.toString) {
+    object mixingAction extends Action("") {
+      def apply : Unit = {
+        try {
+          mixingFreq = mixingFreqField.text.toInt
+          reportArea.append("Mixing Frequency is now: "+mixingFreq+"\n")
+          if (mixingFreq < -1) {
+            mixingFreq = -1 //no mixing
+          }
+        } catch {
+          case _ => reportArea.append("Please enter acceptable mixing frequency.\n")
+        }
+      }
+    }
+    action_=(mixingAction)
+  }
+  var mixingProb = 0.1
+  object mixingProbField extends TextField(mixingProb.toString) {
+    object mixingProbAction extends Action("") {
+      def apply : Unit = {
+        try {
+          mixingProb = mixingProbField.text.toDouble
+          if (mixingProb < 0.0) {
+            mixingProb = 0.0
+          }
+          else if (mixingProb > 0.5) {
+            mixingProb = 0.5 //no extremes
+          }
+          reportArea.append("Mixing probability is now: "+mixingProb+"\n")
+        } catch {
+          case _ => reportArea.append("Try to enter another value for mixing probability.\n")
+        }
+      }
+    }
+    action_=(mixingProbAction)
   }
   var discardRate = 0.5
   object discardRateField extends TextField(discardRate.toString) {
@@ -546,6 +580,17 @@ class EvolverInterface extends SimpleSwingApplication {
       } catch {
         case _ => {}
       }
+      try {
+        mixingFreq = (e \\ "MixingFreq").text.toInt
+      } catch {
+        case _ => { reportArea.append("Could not parse the value of MixingFreq.\n") }
+      }
+      try {
+        mixingProb = (e \\ "MixingProb").text.toDouble
+        
+      } catch {
+        case _ => { reportArea.append("Could not parse the value of MixingProb.\n")}
+      }
     }
     else {
       reportArea.append("Could not read the config file.\n")
@@ -553,7 +598,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def writeConfig : Boolean = {
-    val e1 = new Array[Elem](25)
+    val e1 = new Array[Elem](27)
     e1(0) = <DimensionX>{dimX}</DimensionX>
     e1(1) = <DimensionY>{dimY}</DimensionY>
     e1(10) = <NumThreads>{numThreads}</NumThreads>
@@ -579,6 +624,8 @@ class EvolverInterface extends SimpleSwingApplication {
     e1(22) = <FeedAllData>{useFullDataFeed}</FeedAllData>
     e1(23) = <InitCells>{initialCells}</InitCells>
     e1(24) = <InitBlocks>{initialBlocks}</InitBlocks>
+    e1(25) = <MixingFreq>{mixingFreq}</MixingFreq>
+    e1(26) = <MixingProb>{mixingProb}</MixingProb>
     //e1(15) =
     val xrep = <EvolverConfig>{for (i <- 0 until e1.length) yield e1(i)}</EvolverConfig>
     val f = new File(configPath)
@@ -599,7 +646,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def configure : Unit = {
-    val cnfPanel = new GridPanel(10,4) {
+    val cnfPanel = new GridPanel(11,4) {
       contents += new Label("Threads:")
       contents += threadsField
 
@@ -640,11 +687,13 @@ class EvolverInterface extends SimpleSwingApplication {
       contents += autoNormalize
       contents += SaveOnExit
       contents += UseFullDataFeed
+      contents += new Label("MixingFreq:")
+      contents += mixingFreqField //new Label("")
+      contents += new Label("MixingProb:")
+      contents += mixingProbField
       contents += new Label("")
       contents += new Label("")
       contents += new Label("")
-      //contents += new Label("")
-      
       contents += configurationReady
     }
     cnfPanel.border_=(Swing.EtchedBorder(Swing.Raised,rCol,sCol))
@@ -666,6 +715,7 @@ class EvolverInterface extends SimpleSwingApplication {
     printInfo = printInfoSelector.selected
     supervisor.setPrintInfo(printInfo)
     supervisor.setSaveOnExit(saveOnExit)
+    supervisor.setMixingParameters(mixingFreq,mixingProb)
     //supervisor.setThreads(numThreads)
     val scheduleRep = scheduleChooser.selection.item
     var schedule:CoolingSchedule = new SimpleSchedule(mutProb,flipProb,maxSteps)
@@ -689,6 +739,9 @@ class EvolverInterface extends SimpleSwingApplication {
     schedule.setSizes(dsizes)
     if (!useFullDataFeed) {
       reportArea.append("Caution! Not using the whole data set at the beginning.\n")
+    }
+    if (supervisor.getNumberOfEvolvers != numThreads) {
+      supervisor.setThreads(numThreads)
     }
     for (i <- 0 until numThreads) {
       /*
@@ -738,6 +791,7 @@ class EvolverInterface extends SimpleSwingApplication {
       dworker.normalizeAll
     }
     supervisor.setSaveOnExit(saveOnExit)
+    supervisor.setMixingParameters(mixingFreq,mixingProb)
     //supervisor.setThreads(numThreads)
     reportArea.append("Starting evolution using restored populations.\n")
     var id = 0
@@ -756,6 +810,9 @@ class EvolverInterface extends SimpleSwingApplication {
     }
     if (!useFullDataFeed) {
       reportArea.append("Caution! Not using the whole data set at the beginning.\n")
+    }
+    if (supervisor.getNumberOfEvolvers != numThreads) {
+      supervisor.setThreads(numThreads)
     }
     for (i <- restoredCount until numThreads) {
       val pop0 = evolvers.apply(0).getCellPop
@@ -1078,13 +1135,16 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`makePredictions`) => {
 	    evolutionMode = modeSelector.selection.index//modes.indexOf(modeSelector.selection.item)
-	    println(evolutionMode)
+	    //println(evolutionMode)
+	    predict(dworker.getCount-1)
+	    /*
 	    if (evolutionMode < 2) {
 	      predict(2)
 	    }
 	    else {
 	      predict(4)
 	    }
+	    */
 	  }
 	  case ButtonClicked(`clearReportArea`) => {
 	    reportArea.text_=("All clear!\n")
@@ -1092,7 +1152,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	  case ButtonClicked(`runDiagnostics`) => {
 	    val dvals = supervisor.runDiagnostics
 	    for (v <- dvals) {
-	      reportArea.append("Number of identical cells was: "+v+"\n")
+	      reportArea.append("Diagnostic results: "+v+"\n")
 	    }
 	  }
 	  case ButtonClicked(`writeBestNet`) => {
@@ -1131,7 +1191,10 @@ class EvolverInterface extends SimpleSwingApplication {
 	  case ButtonClicked(`displayNet`) => {
 	    //displayBestNet using the Jung library but first creates a window used to choose the layout algorithm
 	    val loPane = new GridPanel(2,1) {
-	      contents += layoutSelector
+	      contents += new GridPanel(1,2) {
+	        contents += new Label("Layout:")
+	        contents += layoutSelector
+	      }
 	      contents += layoutOK
 	    }
 	    listenTo(layoutOK,layoutSelector)
@@ -1257,6 +1320,7 @@ class EvolverInterface extends SimpleSwingApplication {
     var res = new Array[Array[Double]](0)//
     rnn.reset
     val resArea = new TextArea
+    resArea.border_=(new TitledBorder(new LineBorder(java.awt.Color.black),"Predicted Values:"))
     if (evolutionMode < 2) {
       while (j <= idx) {
         val a1 = dworker.getData(j) //
@@ -1271,19 +1335,33 @@ class EvolverInterface extends SimpleSwingApplication {
         j += 2
       }
     }
-    else if (evolutionMode == 2 && idx == 4) {
-      res = rnn.linearPredict(dworker.getData(0),dworker.getData(2),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
-      for (i <- 0 until res.length) {
-        for (k <- 0 until res(i).length) {
-          resArea.append(res(i)(k).toString+" ");
+    else if (evolutionMode == 2 && idx >= 3) {
+      if (idx == 3) {
+        res = rnn.linearPredict(dworker.getData(0),dworker.getData(2),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
+        for (i <- 0 until res.length) {
+          for (k <- 0 until res(i).length) {
+            resArea.append(res(i)(k).toString+" ");
+          }
+          resArea.append("\n")
         }
-        resArea.append("\n")
+      }
+      else {
+        val B = rnn.linearRegression(dworker.getData(0),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
+        val out1 = rnn.evolinoFeed(dworker.getData(2)++dworker.getData(4),actFun)
+        val Y = out1 * B
+        for (i <- 0 until Y.numRows) {
+          for (j <- 0 until Y.numCols) {
+            resArea.append(Y.apply(i,j).toString+" ")
+          }
+          resArea.append("\n")
+        }
       }
     }
-    else if (evolutionMode == 3 && idx == 4) {
+    else if (evolutionMode == 3 && idx >= 3) {
       dworker.initSVM
       val p = getSVMParameter(rnn)
-      res = rnn.svmRegression(dworker.getData(0),dworker.getCols(0),actFun,p,dworker.getData(2))
+      val data2 = if (idx < 5) dworker.getData(2) else dworker.getData(2) ++ dworker.getData(4)
+      res = rnn.svmRegression(dworker.getData(0),dworker.getCols(0),actFun,p,data2)
       for (i <- 0 until res.length) {
         for (k <- 0 until res(i).length) {
           resArea.append(res(i)(k).toString+" ");
@@ -1302,7 +1380,18 @@ class EvolverInterface extends SimpleSwingApplication {
     object drawPredictions extends MenuItem("Plot Predictions") {
       object plotAction extends Action("Plot Predictions") {
         def apply : Unit = {
-          NeuralOps.plotResults(res,dworker.getData(3).toArray)
+          if (idx == 3) {
+            NeuralOps.plotResults(res,dworker.getData(3).toArray)
+          }
+          else if (idx > 3 ){
+            val data2 = dworker.getData(3)
+            val (rows,cols) = (data2.size,data2.head.length)
+            var emptyList = List[Array[Double]]()
+            for (i <- rows until res.length) {
+              emptyList = emptyList.:+(new Array[Double](cols))
+            }
+            NeuralOps.plotResults(res,(data2++emptyList).toArray)
+          }
           /*
           for (i <- 0 until res(0).length) {
             val (x,y) = dworker.getAsTensors(res,i)
@@ -1462,6 +1551,7 @@ class EvolverInterface extends SimpleSwingApplication {
     val imgServer = new VisualizationImageServer(lOut,new Dimension(640,480))
     imgServer.getImage(new Point(370,240),new Dimension(640,480))
   }
+  /*
   def displayBestNet : Unit = {
     val bestNet = supervisor.getSuperStar
     val graphRep = bestNet.toGraph
@@ -1476,6 +1566,7 @@ class EvolverInterface extends SimpleSwingApplication {
     displayWindow.pack()
     displayWindow.setVisible(true)
   }
+  */
   def loadRNNs(file:File) : Int = {
     val fIn = new FileInputStream(file)
     val inflater = new InflaterInputStream(fIn)
@@ -1555,7 +1646,6 @@ class EvolverInterface extends SimpleSwingApplication {
     reportArea.append("Restored a previously saved RNND.\n")
   }
   def runPrettyPrint(e:Elem) : Unit = {
-    //val printer = new PrettyPrinter(66,10)
     val s = e.toString
     var i = 60
     while (i < s.length) {

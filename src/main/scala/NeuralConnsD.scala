@@ -404,13 +404,15 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	    }
 	  }
 	  //Let's add or remove a random connection every once in a while
-	  while (rnd.nextDouble < mutP) {
+	  var p = mutP
+	  while (rnd.nextDouble < p) {
 	    if (math.random < 0.50) {
 	      nc.addRandomConnection(rnd)
 	    }
 	    else {
 	      nc.removeRandomConnection(rnd)
 	    }
+	    p *= 0.9 //additional connections or deletions become ever more improbable
 	  }
 	  nc
 	}

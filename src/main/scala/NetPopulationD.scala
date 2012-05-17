@@ -73,7 +73,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     return netPop(0)
   } 
   def getSize = netPop.length
-  
+  def getSizes = netPop(0).getSizes
   def calculateDiversity : Double = {
     var d = 0.0
     for (i <- 0 until netPop.length - 1) {

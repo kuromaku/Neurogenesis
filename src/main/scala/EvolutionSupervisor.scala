@@ -35,12 +35,16 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   var mixingFreq = 41
   var mixingProb = 0.05
   var mixingStep = 1
+  var maxBlocks = 20
+  var maxCells = 20
+  
   def act : Unit = {
     loop {
       react {
         case "Start" => {
           running = true
           for (i <- 0 until evolvers.length) {
+            evolvers(i)._1.setMaximumSize(maxCells,maxBlocks)
             evolvers(i)._1.start
           }
           var i = 0
@@ -55,6 +59,17 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
         }
         case UpdateNow(step) => {
           //reporter ! ProgressMessage("Supervisor is updating: "+step.toString+"\n")
+          
+          //let's try if this solves the halting problem
+          var numRunning = 0
+          for (i <- 0 until evolvers.length) {
+            if (evolvers(i)._1.isRunning) {
+              numRunning += 1
+            }
+          }
+          runningThreads = numRunning
+          //solves or not???
+          
           var freeThreads = (runningThreads < maxThreads)
           var i = 0
           while (freeThreads && i < evolvers.length) {
@@ -75,6 +90,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             */
             i += 1
           }
+          //Probably not necessary
           if (freeThreads) {
             this ! UpdateNow(counter)
           }
@@ -107,13 +123,15 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             
           }
           processData
-          if (mixingFreq > 1 && mixingStep % mixingFreq == 0) {
-            val numMixed = mixPopulations(mixingProb)
-            reporter ! ProgressMessage("Mixed "+numMixed+" populations")
-            mixingStep = 1
-          }
-          else {
-            if (mixingFreq > 1) mixingStep += 1
+          if (mixingFreq > 1) {
+            if (mixingStep % mixingFreq == 0) {
+              val numMixed = mixPopulations(mixingProb)
+              reporter ! ProgressMessage("Mixed "+numMixed+" populations")
+              mixingStep = 1
+            }
+            else {
+              mixingStep += 1
+            }
           }
           this ! UpdateNow(counter)
         }
@@ -124,7 +142,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           if (printInfo) {
             reporter ! ProgressMessage("Supervisor started another NeuralEvolver")
           }
-          this ! UpdateNow(counter)
+          //this ! UpdateNow(counter)
         }
         case AnotherRNN(goodEnough) => {
           reporter ! ProgressMessage("Found a network that seems good enough!!!")
@@ -139,21 +157,21 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           for (e <- evolvers) {
             e._1 ! MakeExit(saveOnExit)
           }
-          reporter ! "Exit"
         }
         case "Exiting" => {
           exitCounter += 1
-          running = false
           if (exitCounter == evolvers.size) {
+            running = false
             var bn = gatherBest.toArray
             bn = bn.sortWith(_.getFitness < _.getFitness)
-            tArea.append("Maximum number of steps already performed.\n")
+            tArea.append("All done.\n")
             tArea.append("The resulting best net in XML:\n")
             XMLOperator.runPrettyPrint(bn(bn.length-1).toXML,tArea)
             tArea.append("\n")
             if (printInfo) {
               reporter ! ProgressMessage("Supervisor says Goodbye!")
             }
+            reporter ! "Exit"
             exit
           }
         }
@@ -183,19 +201,21 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     maxID += 1
   }
   def addEvolvers(el:Seq[NeuralEvolver]) : Unit = {
-    val arr = new Array[(NeuralEvolver,Int)](evolvers.length+el.size)
+    val arr = new Array[(NeuralEvolver,Int)](evolvers.length+el.count(_ != null))
     for (i <- 0 until evolvers.length) {
       arr(i) = evolvers(i)
     }
     val k = evolvers.length
     var s = 0
     for (evo <- el) {
-      evo.setID(maxID)
-      arr(k+s) = (evo,0)
-      evo.setPrintInfo(printInfo)
-      evo.start
-      maxID += 1
-      s += 1
+      if (evo != null) {
+        evo.setID(maxID)
+        arr(k+s) = (evo,0)
+        evo.setPrintInfo(printInfo)
+        evo.start
+        maxID += 1
+        s += 1
+      }
     }
     evolvers = arr
   }
@@ -240,11 +260,13 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     var numMixed = 0
     for (i <- 0 until (evolvers.length-1)) {
       val memPar = evolvers(i)._1.getMemorySize
-      val rest = evolvers.drop(i+1)
-      for (j <- 0 until rest.length) {
-        if (rest(j)._1.getMemorySize == memPar) {
-          evolvers(i)._1.mixPopulations(rest(j)._1, mixProb)
-          numMixed += 1
+      if (!evolvers(i)._1.isRunning) {
+        val rest = evolvers.drop(i+1)
+        for (j <- 0 until rest.length) {
+          if (rest(j)._1.getMemorySize == memPar && !rest(j)._1.isRunning) {
+            evolvers(i)._1.mixPopulations(rest(j)._1, mixProb)
+            numMixed += 1
+          }
         }
       }
     }
@@ -273,10 +295,16 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
         this ! "Exit"
       }
     }
+    /*
+    if (printInfo) {
+      reporter ! ProgressMessage("Processed data... runningThreads: "+runningThreads)
+    }
+    */
   }
   def reset : Unit = {
     evolvers = new Array[(NeuralEvolver,Int)](numThreads)
     running = false
+    runningThreads = 0
   }
   def getSuperStar : RNND = {
     var found = false
@@ -316,6 +344,18 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     }
     lobn
   }
+  def restart2 : Unit = {
+    reporter ! ProgressMessage("Attempting to restart evolution")
+    tArea.append("Number of running threads while halted: "+runningThreads+"\n")
+    runningThreads = 0
+    var totalGenerations = 0
+    for ((e,g) <- evolvers) {
+      tArea.append("Id: "+e.myId+" gen: "+g+" isRunning: "+e.isRunning+"\n")
+      totalGenerations += g
+    }
+    tArea.append("Total number of steps evolved: "+totalGenerations+"\n")
+    this ! UpdateNow(0)
+  }
   def runDiagnostics : List[(Int,Double)] = {
     var ivals = List[(Int,Double)]()
     reporter ! ProgressMessage("Running diagnostics for "+evolvers.length+" evolvers")
@@ -330,6 +370,13 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   def setSaveOnExit(b:Boolean) : Unit = { saveOnExit = b }
   def setSavePath(path:String) = savePath = path
   def setMixingParameters(freq:Int,prob:Double) : Unit = { mixingFreq = freq; mixingProb = prob }
+  def setMaximumSize(maxCells2:Int,maxBlocks2:Int) : Unit = {
+    maxCells = maxCells2
+    maxBlocks = maxBlocks2
+    for ((e,g) <- evolvers) {
+      e.setMaximumSize(maxCells,maxBlocks)
+    }
+  }
   def save(e:Elem,fs:String) : Unit = {
     XML.save(savePath+"best"+fs+".xml",e,"UTF-8",true)
   }

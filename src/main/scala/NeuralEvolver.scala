@@ -55,6 +55,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var svmCols: Array[Array[Double]] = null
   var epsilonRegression = false //Determines which SVM regression mode to use
   
+  var maxBlocks = 20
+  var maxCells = 20
+  
   def getCellPop : CellPopulationD = cellPopulation
   def getNetPop : NetPopulationD = netPopulation
   def getMemorySize : (Int,Int) = { (cellPopulation.getBlocks,cellPopulation.getStateLength) }
@@ -69,6 +72,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   }
   def setSavePath(path:String) : Unit = { savePath = path }
   def setUseFullDataFeed(b:Boolean) : Unit = { partialDataFeed = !b }
+  def setMaximumSize(maxCells2:Int,maxBlocks2:Int) : Unit = {
+    maxCells = maxCells2
+    maxBlocks = maxBlocks2
+  }
   def isRunning : Boolean = updatingNow
   def initMatrix : Unit = {
     matrix = NeuralOps.list2Matrix(dataSets.apply(1))
@@ -172,6 +179,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               mutateNow = true
             }
             else if (noImprovementCounter % (burstMutationFreq-7) == 0) {
+              //As the net population develops some unique cells let's occasionally inject them back to the cellPopulation
               val rnn = bestNets(rnd.nextInt(bestNets.length))
               if (rnn != null) {
                 cellPopulation.injectCells(rnn)
@@ -211,24 +219,37 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           }
           */
           if (!spawned && spawnNow) {
-            val cPop2 = cellPopulation.complexify(false,rnd)
-            val cPop3 = cellPopulation.complexify(true,rnd)
-            val nPop2 = new NetPopulationD(cPop2)
-            nPop2.init
-            val nPop3 = new NetPopulationD(cPop3)
-            nPop3.init
-            val evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
-
-            val evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
-
-            configure(evo2)
-            configure(evo3)
-
-            supervisor ! BirthMessageD(evo2,evo3)
-            //supervisor ! BirthMessageD()
-            if (printInfo) {
-              reporter ! ProgressMessage("Evolver id: "+myId+" spawning new NeuralEvolvers.")
+            val sizes = netPopulation.getSizes
+            var evo2:NeuralEvolver = null
+            var evo3:NeuralEvolver = null
+            if (sizes(2) < maxCells) {
+              val cPop2 = cellPopulation.complexify(false,rnd)
+              val nPop2 = new NetPopulationD(cPop2)
+              nPop2.init
+              evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
+              configure(evo2)
             }
+            else {
+              reporter ! ProgressMessage("Evolver id: "+myId+" could not spawn a new Evolver with an added memory cell due to size limitation")
+            }
+            if (sizes(1) < maxBlocks) {
+              val cPop3 = cellPopulation.complexify(true,rnd)
+              val nPop3 = new NetPopulationD(cPop3)
+              nPop3.init
+              evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
+              configure(evo3)
+            }
+            else {
+              reporter ! ProgressMessage("Evolver id: "+myId+" could not spawn a new Evolver with an added memory block due to size limitation")
+            }
+            if (evo2 != null || evo3 != null) {
+              supervisor ! BirthMessageD(evo2,evo3)
+              if (printInfo) {
+                reporter ! ProgressMessage("Evolver id: "+myId+" spawning new NeuralEvolvers.")
+              }
+            }
+            //supervisor ! BirthMessageD()
+
             spawned = true
           }
           
@@ -237,12 +258,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             writeNow = false
           }
           supervisor ! StatusMessage(bestFitness,myId)
+          schedule.update(netPopulation.getBestFitness)
           if (schedule.getCurrent == schedule.getMax) {
             //supervisor ! UpdateNow(schedule.getCurrent)
+            updatingNow = false
             supervisor ! "Exiting"
             exit
           }
-          schedule.update(netPopulation.getBestFitness)
           updatingNow = false
         }
         case Save2File(f) => {
@@ -287,6 +309,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     e.setNetRepopulator(netRepopulator)
     e.setSchedule(schedule.makeClone)
     e.setEvoMode(learningMode)
+    e.setMaximumSize(maxCells,maxBlocks) //system resource demands grow rather fast especially if SVMBoost is used with network size
     if (learningMode >= 3) {
       e.initSVMLearner(svmCols,epsilonRegression)//svmNodes,
     }

@@ -43,12 +43,13 @@ object NeuralOps {
   }
   def array2Matrix(a:Array[Array[Double]]) : DenseMatrix[Double] = {
     val mDat = new Array[Double](a.length*a(0).length)
+    val a0l = a(0).length
     for (i <- 0 until a.length) {
-      for (j <- 0 until a(i).length) {
-        mDat(i*a(0).length+j) = a(i)(j)
+      for (j <- 0 until a0l) {
+        mDat(i*a0l+j) = a(i)(j)
       }
     }
-    new DenseMatrix[Double](a.length,a(0).length,mDat)
+    new DenseMatrix[Double](a.length,a0l,mDat)
   }
   def list2Matrix(l:List[Array[Double]]) : DenseMatrix[Double] = {
     val mDat = new Array[Double](l.size*l.head.length)

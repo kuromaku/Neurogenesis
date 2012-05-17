@@ -375,6 +375,34 @@ class EvolverInterface extends SimpleSwingApplication {
     }
     action_=(feedAction)
   }
+  var maxBlocks = 20
+  object maxBlocksField extends TextField(maxBlocks.toString) {
+    object maxBlocksAction extends Action("") {
+      def apply : Unit = {
+        try {
+          maxBlocks = maxBlocksField.text.toInt
+          reportArea.append("Maximum number of memory blocks is now: "+maxBlocks+"\n")
+        } catch {
+          case _ => reportArea.append("Enter that number again.\n")
+        }
+      }
+    }
+    action_=(maxBlocksAction)
+  }
+  var maxCells = 20
+  object maxCellsField extends TextField(maxCells.toString) {
+    object maxCellsAction extends Action("") {
+      def apply : Unit = {
+        try {
+          maxCells = maxCellsField.text.toInt
+          reportArea.append("Maximum number of memory cells is now: "+maxCells+"\n")
+        } catch {
+          case _ => reportArea.append("Enter that number again.\n")
+        }
+      }
+    }
+    action_=(maxCellsAction)
+  }
   /*
    * 	  case SelectionChanged(`modeSelector`) => {
 	    val s = modeSelector.selection.item
@@ -591,6 +619,16 @@ class EvolverInterface extends SimpleSwingApplication {
       } catch {
         case _ => { reportArea.append("Could not parse the value of MixingProb.\n")}
       }
+      try {
+        maxBlocks = (e \\ "MaxBlocks").text.toInt
+      } catch {
+        case _ => { reportArea.append("Could not parse the maximum number of memory blocks.\n")}
+      }
+      try {
+        maxCells = (e \\ "MaxCells").text.toInt
+      } catch {
+        case _ => { reportArea.append("Could not parse the maximum number of memory cells.\n")}
+      }
     }
     else {
       reportArea.append("Could not read the config file.\n")
@@ -598,7 +636,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def writeConfig : Boolean = {
-    val e1 = new Array[Elem](27)
+    val e1 = new Array[Elem](29)
     e1(0) = <DimensionX>{dimX}</DimensionX>
     e1(1) = <DimensionY>{dimY}</DimensionY>
     e1(10) = <NumThreads>{numThreads}</NumThreads>
@@ -626,6 +664,8 @@ class EvolverInterface extends SimpleSwingApplication {
     e1(24) = <InitBlocks>{initialBlocks}</InitBlocks>
     e1(25) = <MixingFreq>{mixingFreq}</MixingFreq>
     e1(26) = <MixingProb>{mixingProb}</MixingProb>
+    e1(27) = <MaxBlocks>{maxBlocks}</MaxBlocks>
+    e1(28) = <MaxCells>{maxCells}</MaxCells>
     //e1(15) =
     val xrep = <EvolverConfig>{for (i <- 0 until e1.length) yield e1(i)}</EvolverConfig>
     val f = new File(configPath)
@@ -646,7 +686,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def configure : Unit = {
-    val cnfPanel = new GridPanel(11,4) {
+    val cnfPanel = new GridPanel(12,4) {
       contents += new Label("Threads:")
       contents += threadsField
 
@@ -691,6 +731,10 @@ class EvolverInterface extends SimpleSwingApplication {
       contents += mixingFreqField //new Label("")
       contents += new Label("MixingProb:")
       contents += mixingProbField
+      contents += new Label("Max Blocks:")
+      contents += maxBlocksField
+      contents += new Label("Max Cells:")
+      contents += maxCellsField
       contents += new Label("")
       contents += new Label("")
       contents += new Label("")
@@ -702,6 +746,16 @@ class EvolverInterface extends SimpleSwingApplication {
     confWindow.pack
     confWindow.visible_=(true)
   }
+  def initSupervisor : Unit = {
+    printInfo = printInfoSelector.selected
+    supervisor.setPrintInfo(printInfo)
+    supervisor.setSaveOnExit(saveOnExit)
+    supervisor.setMixingParameters(mixingFreq,mixingProb)
+    supervisor.setMaximumSize(maxCells,maxBlocks)
+    if (supervisor.getNumberOfEvolvers != numThreads) {
+      supervisor.setThreads(numThreads)
+    }
+  }
   def initPopulation() : Unit = {
     dims = dworker.getDims
     if (normalizeData) {
@@ -712,10 +766,7 @@ class EvolverInterface extends SimpleSwingApplication {
     val allNets = new Array[NetPopulationD](numThreads)
     val allEvolvers = new Array[NeuralEvolver](numThreads)
     //val rnd = new Random
-    printInfo = printInfoSelector.selected
-    supervisor.setPrintInfo(printInfo)
-    supervisor.setSaveOnExit(saveOnExit)
-    supervisor.setMixingParameters(mixingFreq,mixingProb)
+    initSupervisor
     //supervisor.setThreads(numThreads)
     val scheduleRep = scheduleChooser.selection.item
     var schedule:CoolingSchedule = new SimpleSchedule(mutProb,flipProb,maxSteps)
@@ -740,9 +791,7 @@ class EvolverInterface extends SimpleSwingApplication {
     if (!useFullDataFeed) {
       reportArea.append("Caution! Not using the whole data set at the beginning.\n")
     }
-    if (supervisor.getNumberOfEvolvers != numThreads) {
-      supervisor.setThreads(numThreads)
-    }
+
     for (i <- 0 until numThreads) {
       /*
       allPops(i) = new CellPopulationD(dims(0),if (i % 2 == 0) 1 else 2,dims(1),popSize)
@@ -790,8 +839,7 @@ class EvolverInterface extends SimpleSwingApplication {
     else {
       dworker.normalizeAll
     }
-    supervisor.setSaveOnExit(saveOnExit)
-    supervisor.setMixingParameters(mixingFreq,mixingProb)
+    initSupervisor
     //supervisor.setThreads(numThreads)
     reportArea.append("Starting evolution using restored populations.\n")
     var id = 0
@@ -810,9 +858,6 @@ class EvolverInterface extends SimpleSwingApplication {
     }
     if (!useFullDataFeed) {
       reportArea.append("Caution! Not using the whole data set at the beginning.\n")
-    }
-    if (supervisor.getNumberOfEvolvers != numThreads) {
-      supervisor.setThreads(numThreads)
     }
     for (i <- restoredCount until numThreads) {
       val pop0 = evolvers.apply(0).getCellPop
@@ -885,6 +930,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	}
 	val generateData = new MenuItem("Generate Data") { enabled_=(true) }
 	val stopEvolution = new MenuItem("Stop!") { enabled_=(false) }
+	val restartEvolution = new MenuItem("Restart") { enabled_=(true) }
 	val plotData = new MenuItem("Plot Data") { enabled_=(false) }
 	val runLeastSquares = new MenuItem("Test Linear Regression") { enabled_=(false) }
 	val runSVMRegression = new MenuItem("Test SVM Regression") { enabled_=(false) }
@@ -969,7 +1015,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	  contents += new Menu("Control") {
 	    contents += stopEvolution
 	    contents += new Separator
-	    //contents += gogo //the supervisor seemed to halt sometimes.. this tells it to go on again
+	    //contents += restartEvolution //the supervisor seemed to halt sometimes.. this tells it to go on again
 	    
 	    
 	  }
@@ -981,7 +1027,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	    configureNow,writeConfigNow,readRNN,readEvolver,restoreRNNs,generateData,modeSelector.selection,
 	    configurationReady,calculateValidationError,runSVMRegression,scheduleChooser.selection,
 	    writeBestNet,displayNet,runLeastSquares,clearReportArea,functionChooser.selection,
-	    makePredictions,clearData,repopulatorSelector,writeBestPopulation,debugRun)
+	    makePredictions,clearData,repopulatorSelector,writeBestPopulation,debugRun,restartEvolution)
 	//listenTo(configurationReady,saveDirField,maxStepsField,functionChooser)
 	//listenTo(writeBestNet,displayNet,modeSelector)
 	var networksDrawn = 0
@@ -1052,6 +1098,10 @@ class EvolverInterface extends SimpleSwingApplication {
 	      runDiagnostics.enabled_=(false)
 	    }
 	    }
+	    restartEvolution.enabled_=(true)
+	  }
+	  case ButtonClicked(`restartEvolution`) => {
+	    supervisor.restart2
 	  }
 	  case ButtonClicked(`readEvolver`) => {
 	    val reval = fChooser.showOpenDialog(contents.head)
@@ -1320,30 +1370,28 @@ class EvolverInterface extends SimpleSwingApplication {
     var res = new Array[Array[Double]](0)//
     rnn.reset
     val resArea = new TextArea
+    def append2Area(resA:Array[Array[Double]]) : Unit = {
+      for (k <- 0 until resA.length) {
+        for (m <- 0 until resA(k).length) {
+          resArea.append(resA(k)(m).toString+" ")
+        }
+        resArea.append("\n")
+      }
+    }
     resArea.border_=(new TitledBorder(new LineBorder(java.awt.Color.black),"Predicted Values:"))
     if (evolutionMode < 2) {
       while (j <= idx) {
         val a1 = dworker.getData(j) //
         res = rnn.feedData(a1,actFun)
         resArea.append("Output for input: "+j+"\n")
-        for (k <- 0 until res.length) {
-          for (m <- 0 until res(k).length) {
-            resArea.append(res(k)(m).toString+" ")
-          }
-          resArea.append("\n")
-        }
+        append2Area(res)
         j += 2
       }
     }
     else if (evolutionMode == 2 && idx >= 3) {
       if (idx == 3) {
         res = rnn.linearPredict(dworker.getData(0),dworker.getData(2),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
-        for (i <- 0 until res.length) {
-          for (k <- 0 until res(i).length) {
-            resArea.append(res(i)(k).toString+" ");
-          }
-          resArea.append("\n")
-        }
+        append2Area(res)
       }
       else {
         val B = rnn.linearRegression(dworker.getData(0),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
@@ -1362,12 +1410,7 @@ class EvolverInterface extends SimpleSwingApplication {
       val p = getSVMParameter(rnn)
       val data2 = if (idx < 5) dworker.getData(2) else dworker.getData(2) ++ dworker.getData(4)
       res = rnn.svmRegression(dworker.getData(0),dworker.getCols(0),actFun,p,data2)
-      for (i <- 0 until res.length) {
-        for (k <- 0 until res(i).length) {
-          resArea.append(res(i)(k).toString+" ");
-        }
-        resArea.append("\n")
-      }
+      append2Area(res)
     }
     else {
       resArea.append("Not yet implemented for selected options...\n")
@@ -1392,25 +1435,6 @@ class EvolverInterface extends SimpleSwingApplication {
             }
             NeuralOps.plotResults(res,(data2++emptyList).toArray)
           }
-          /*
-          for (i <- 0 until res(0).length) {
-            val (x,y) = dworker.getAsTensors(res,i)
-            Plotting.subplot(res(0).length,1,i+1)
-            Plotting.plot(x,y)
-            if (idx == 2) {
-              Plotting.hold(true)
-              val (x2,y2) = dworker.getAsTensors(1,i)
-              Plotting.plot(x2,y2)
-              Plotting.hold(false)
-            }
-            else if (idx == 4) {
-              Plotting.hold(true)
-              val (x2,y2) = dworker.getAsTensors(3,i)
-              Plotting.plot(x2,y2)
-              Plotting.hold(false)
-            }
-          }
-          */
         }
       }
       action_=(plotAction)

@@ -1,9 +1,11 @@
-== Introduction ==
+==Introduction==
 Neurogenesis provides a simple GUI that can be used to evolve recurrent neural networks that model multiple dimensional time series with long-term dependencies.
 
 The network model is a derivative of the so-called Long Short-Term Memory networks. These networks are grown, complexified, concurrently.
 
-== Basics and Installation ==
+With the right input data, proper supervision, enough computing time and maybe some luck, these types of networks could be evolved to predict tricky financial time series or even predict earthquakes and volcanic eruptions.
+
+==Basics and Installation==
 
 With the GUI you can read data from text files with one feature vector of double values (space separated) on each row. You can select multiple files at the same time provided they are in the order (1 training inputs, 2 training targets, 3 validation inputs, 4 validation targets). After that you can start the training procedure with the default parameters or modify them first using provided configuration facilities.
 
@@ -13,9 +15,9 @@ Download JUNG at http://jung.sourceforge.net/
 Scalala at https://github.com/scalala/Scalala
 JFreeChart at http://sourceforge.net/projects/jfreechart/files/
 
-Not yet fully functional or anything close to bugfree.
+The program is not yet fully functional or anything close to bugfree.
 
-However, for those who like to experiment, it's now possible to use Simple Build Tool (sbt) to "compile" and "run" the GUI to test the program. Example if you have sbt-launch.jar at /usr/bin/sbt-launch.jar and are located in the project folder: java -Dfile.encoding=UTF-8 -jar /usr/bin/sbt-launch.jar "$@"
+However, if you are someone who likes to experiment, it's now possible to use Simple Build Tool (sbt) to "compile" and "run" the GUI to test the program. Example if you have sbt-launch.jar at /usr/bin/sbt-launch.jar and are located in the project folder: java -Dfile.encoding=UTF-8 -jar /usr/bin/sbt-launch.jar "$@"
  
 To make this work you should first clone the repository using git and then put the following jars into a folder lib/:
 collections-generic-4.01.jar  jfreechart-1.0.14.jar      jung-io-2.0.1.jar                         scala-library.jar
@@ -27,8 +29,9 @@ jcommon-1.0.17.jar            jung-graph-impl-2.0.1.jar  scalala_2.9.1-1.0.0.RC3
 
 Of course eventually (after all the major bugs and performance issues have been fixed) a fully working and runnable jar file will be added for the convenience of users.
 
-== Features ==
--- Automatic saves periodically and when stopping the evolution provided those options have been selected at configuration
+==Features==
+-- Automatic saves periodically and when stopping the evolution provided those options have been selected at configuration (so that you can leave the number crunching machine to do its work for several weeks if need be and you won't lose all the progress if something goes wrong)
 -- A method of restoring a saved population back into memory (also single networks)
 -- An experimental support for using support vector machine regression (mode: SVMBoost), provided by a minimally modified libsvm library included in the repository, has been added in order to boost the prediction performance in some situations in addition of least squares regression (mode: Evolino) implemented using the Scalala library.
 -- Some modularity in design allowing easy addition of evolutionary strategies
+-- The ability to set the minimum and maximum network sizes to bound the evolutionary process

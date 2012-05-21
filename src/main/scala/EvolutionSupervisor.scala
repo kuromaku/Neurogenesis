@@ -15,6 +15,8 @@ import scala.collection.mutable.ArrayOps
 import neurogenesis.util.XMLOperator
 
 class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExiting:Boolean=false) extends Actor {
+  val fsep = System.getProperty("file.separator")
+  var savePath = "."+fsep+"saves"+fsep
   var maxThreads = numThreads
   var runningThreads = 0
   var evolvers = new Array[(NeuralEvolver,Int)](numThreads)
@@ -27,17 +29,17 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   var maxFit = 0.0d
   var saveCounter = 1
   var saveFrequency = 5000L
-  var savePath = "./saves/"
+  
   var exitCounter = 0
   var saveOnExit = saveWhenExiting
   var running = false
   var maxID = 0
-  var mixingFreq = 41
+  var mixingFreq = 100
   var mixingProb = 0.05
   var mixingStep = 1
   var maxBlocks = 20
   var maxCells = 20
-  
+  var exitInProgress = false
   def act : Unit = {
     loop {
       react {
@@ -79,7 +81,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
               if (runningThreads == maxThreads) {
                 freeThreads = false
               }
-              if (printInfo) {
+              if (printInfo && !exitInProgress) {
                 reporter ! ProgressMessage("Number of running threads: "+runningThreads)
               }
             }
@@ -154,6 +156,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           this ! "Exit"
         }
         case "Exit" => {
+          exitInProgress = true
           for (e <- evolvers) {
             e._1 ! MakeExit(saveOnExit)
           }
@@ -183,6 +186,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     if (idx < evolvers.length) {
       evolvers(idx) = (e,0)
       e.setID(idx)
+      //e.setSaveFreq(saveFrequency.toInt)
       e.start
       maxID += 1
     }
@@ -305,6 +309,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     evolvers = new Array[(NeuralEvolver,Int)](numThreads)
     running = false
     runningThreads = 0
+    exitInProgress = false
   }
   def getSuperStar : RNND = {
     var found = false

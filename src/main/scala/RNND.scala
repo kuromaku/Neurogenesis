@@ -289,12 +289,14 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val pred = output1 * rMatrix
     var idx = 0
     for (row <- out2) {
+      var err2 = 0.0
       for (j <- 0 until row.length) {
-        error += scala.math.pow(pred.apply(idx,j)-row(j),2)
+        err2 += scala.math.pow(pred.apply(idx,j)-row(j),2)
       }
+      error += err2/row.length
       idx += 1
     }
-    error
+    error/out2.size
   }
   def makeClone : RNND = {
     val il = new Array[InCellD](in)

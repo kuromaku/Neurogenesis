@@ -24,9 +24,16 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def getActivation : Double = activation
   override def setFitness(f:Double) : Unit = {
     val c = fConns.calculateComplexity+rConns.calculateComplexity
-    val fCand = f/c
-    if (fCand > fitness) {
-      fitness = fCand
+    if (c != 0) {
+      val fCand = f/c
+      if (fCand > fitness) {
+        fitness = fCand
+      }
+    }
+    else {
+      if (f > fitness) {
+        fitness = f
+      }
     }
   }
   def stimulate(s:Double) : Unit = { stim += s }

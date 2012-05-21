@@ -34,8 +34,9 @@ import libsvm.svm_parameter
 import libsvm.svm_node
 
 class EvolverInterface extends SimpleSwingApplication {
-  val configPath = "./EvolverConfig.xml"
-  var saveDirectory = "./data/"
+  val fsep = System.getProperty("file.separator")
+  val configPath = "."+fsep+"EvolverConfig.xml"
+  var saveDirectory = "."+fsep+"data"+fsep
   var numberOfLinesShown = 100
   var dataReady = false
   var dims = new Array[Int](2)
@@ -60,6 +61,7 @@ class EvolverInterface extends SimpleSwingApplication {
   var normalizeData = true
   object dataPanel extends TextArea { editable_=(false); border_=(new TitledBorder(new SoftBevelBorder(BevelBorder.LOWERED),"Data in memory:")) }
   object dataCounter extends Label { text_=("No data") }
+  val makePredictions = new MenuItem("Predict using best network") { enabled_=(false) }
   val iWorker = new InterfaceWorker(dataPanel,dataCounter,start)
   val dworker = new DataWorker(supervisor.getReporter,iWorker,normalizeData)
   //val modes = initModes
@@ -431,7 +433,7 @@ class EvolverInterface extends SimpleSwingApplication {
   val scheduleChooser = new ComboBox(Seq[String]("SimpleSchedule","AdaptiveSchedule"))
   val modes = Seq[String]("Basic ESP","ESP+","Evolino","SVMBoost","SVMLite")
   object modeSelector extends ComboBox(modes)
-  val repopulatorSelector = new ComboBox(Seq[String]("BasicRP","ComplexRP"))
+  val repopulatorSelector = new ComboBox(Seq[String]("BasicRP","ComplexRP","RandRP"))
   var startedBefore = false
   
 
@@ -579,6 +581,9 @@ class EvolverInterface extends SimpleSwingApplication {
         selector match {
           case "ComplexRP" => {
             repopulatorSelector.selection.index_=(1)
+          }
+          case "RandRP" => {
+            repopulatorSelector.selection.index_=(2)
           }
           case _ => Unit
         }
@@ -775,6 +780,7 @@ class EvolverInterface extends SimpleSwingApplication {
     val populatorRep = repopulatorSelector.selection.item
     populatorRep match {
         case "ComplexRP" => populator1 = new ComplexRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
+        case "RandRP" => populator1 = new RandCellRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
         case _ => Unit
     }
     scheduleRep match {
@@ -815,6 +821,7 @@ class EvolverInterface extends SimpleSwingApplication {
       allEvolvers(i).setSpawningFreq(spawnFreq)
       allEvolvers(i).setSchedule(schedule.makeClone)
       allEvolvers(i).setSavePath(saveDirectory)
+      allEvolvers(i).setSaveFreq(autoSave)
       
       /*
       if (evolutionMode == 2) {
@@ -850,6 +857,7 @@ class EvolverInterface extends SimpleSwingApplication {
     val populatorRep = repopulatorSelector.selection.item
     populatorRep match {
       case "ComplexRP" => populator1 = new ComplexRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
+      case "RandRP" => populator1 = new RandCellRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
       case _ => Unit
     }
     scheduleRep match {
@@ -886,6 +894,7 @@ class EvolverInterface extends SimpleSwingApplication {
       e.setSpawningFreq(spawnFreq)
       e.setSchedule(schedule.makeClone)
       e.setSavePath(saveDirectory)
+      e.setSaveFreq(autoSave)
       e.start
       supervisor.addEvolver(id,e)
       id += 1
@@ -934,7 +943,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	val plotData = new MenuItem("Plot Data") { enabled_=(false) }
 	val runLeastSquares = new MenuItem("Test Linear Regression") { enabled_=(false) }
 	val runSVMRegression = new MenuItem("Test SVM Regression") { enabled_=(false) }
-	val makePredictions = new MenuItem("Predict using best network") { enabled_=(false) }
+	
 	val calculateValidationError = new MenuItem("Validate best solution") { enabled_=(false)}
 	val writeConfigNow = new MenuItem("Write Config")
 	val writeAllTheBestNets = new MenuItem("Save RNNs") { enabled_=(false) }
@@ -1044,6 +1053,9 @@ class EvolverInterface extends SimpleSwingApplication {
 	      plotData.enabled_=(true)
 	      clearData.enabled_=(true)
 	      generateData.enabled=(false)
+	      if (netReady) {
+	        makePredictions.enabled_=(true)
+	      }
 	    }
 	    
 	  }
@@ -1053,6 +1065,9 @@ class EvolverInterface extends SimpleSwingApplication {
 	    clearData.enabled_=(true)
 	    openFiles.enabled_=(false)
 	    plotData.enabled_=(true)
+	    if (netReady) {
+	      makePredictions.enabled_=(true)
+	    }
 	  }
 	  /*
 	  case ButtonClicked(`readMatrix`) => {
@@ -1365,6 +1380,9 @@ class EvolverInterface extends SimpleSwingApplication {
 
   def predict(idx:Int) : Unit = {
     val rnn = if (!netReady) supervisor.getSuperStar else bRNN
+    if (netReady) {
+      reportArea.append("Using a restored network in prediction...\n")
+    }
     if (rnn != null) {
     var j = 0
     var res = new Array[Array[Double]](0)//
@@ -1524,7 +1542,7 @@ class EvolverInterface extends SimpleSwingApplication {
     val fitness = f0.toString
     val fs = if (fitness.length > 6) fitness.substring(0,6) else fitness
     try {
-      val frep = saveDirectory+"/"+f+"f"+fs+".graph"
+      val frep = saveDirectory+fsep+f+"f"+fs+".graph"
       val writer = new FileWriter(frep)
       if (useXML) {
         writer.write(bestNet.toXML.toString)
@@ -1547,7 +1565,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def writeAllRNNs(lRNN:List[RNND]) : Boolean = {
-    val f = new File(saveDirectory+"/allthebest.xml.zip")
+    val f = new File(saveDirectory+fsep+"allthebest.xml.zip")
     if (!f.exists) {
       val fout = new FileOutputStream(f)
       val compressor = new DeflaterOutputStream(fout)
@@ -1641,7 +1659,7 @@ class EvolverInterface extends SimpleSwingApplication {
     fIn.close
     val s = new java.lang.String(lb.reverse.toArray)
     val xml = XML.loadString(s)
-    val f = (xml \\ "Fitness").text.toDouble
+    val f = (xml \\ "Fitness").head.text.toDouble
     val bNets = (xml \\ "BestNets")
     val cpop = CellPopulationD.fromXML(xml \\ "CellPopulation")
     val npop = NetPopulationD.fromXML(xml \\ "NetPopulationD")
@@ -1667,6 +1685,10 @@ class EvolverInterface extends SimpleSwingApplication {
   def restoreRNND(f:File) : Unit = {
     val rnnXML = XML.loadFile(f)
     bRNN = RNND.fromXML(rnnXML)
+    netReady = true
+    if (dworker.getCount > 3) {
+      makePredictions.enabled_=(true)
+    }
     reportArea.append("Restored a previously saved RNND.\n")
   }
   def runPrettyPrint(e:Elem) : Unit = {

@@ -41,6 +41,30 @@ object NeuralOps {
     }
     new InCellD(fc,rc)
   }
+  def array2Matrix2(a:Array[Array[Double]]) : DenseMatrix[Double] = {
+    val mDat = new Array[Double](a.length*a(0).length)
+    val a0l = a(0).length
+    for (i <- 0 until a.length) {
+      for (j <- 0 until a0l) {
+        mDat(i*a0l+j) = a(i)(j)
+      }
+    }
+    val m0 = new DenseMatrix[Double](a0l,a.length,mDat)
+    m0.t.toDense
+  }
+  def array2Matrix(a:Array[Array[Double]]) : DenseMatrix[Double] = {
+    val al = a.length
+    val a0l = a(0).length
+    val md = new Array[Double](al*a0l)
+    val m = new DenseMatrix(al,a0l,md)
+    for (i <- 0 until al) {
+      for (j <- 0 until a0l) {
+        m.update(i,j,a(i)(j))
+      }
+    }
+    m
+  }
+  /*Oops, this was not the correct way to do it
   def array2Matrix(a:Array[Array[Double]]) : DenseMatrix[Double] = {
     val mDat = new Array[Double](a.length*a(0).length)
     val a0l = a(0).length
@@ -51,6 +75,7 @@ object NeuralOps {
     }
     new DenseMatrix[Double](a.length,a0l,mDat)
   }
+  */
   def list2Matrix(l:List[Array[Double]]) : DenseMatrix[Double] = {
     val mDat = new Array[Double](l.size*l.head.length)
     var idx = 0
@@ -60,7 +85,8 @@ object NeuralOps {
       }
       idx += 1
     }
-    new DenseMatrix[Double](l.size,l.head.length,mDat)
+    val m0 = new DenseMatrix[Double](l.head.length,l.size,mDat)
+    m0.t.toDense
   }
   def matrix2List(m:DenseMatrix[Double]) : List[Array[Double]] = {
     var l = List[Array[Double]]()
@@ -86,7 +112,7 @@ object NeuralOps {
   def squaredError(a1:Array[Double],a2:Array[Double]) : Double = {
     var error = 0d
     for (i <- 0 until a1.length) {
-      error += Math.sqrt(Math.pow(a2(i)-a1(i),2))
+      error += scala.math.sqrt(scala.math.pow(a2(i)-a1(i),2))
     }
     error = error
     error

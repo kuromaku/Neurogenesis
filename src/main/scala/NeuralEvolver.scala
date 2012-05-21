@@ -28,7 +28,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var actFun: Function1[Double,Double] = new SigmoidExp
   var distribution:Distribution = new CauchyDistribution(0.05)
   var schedule: CoolingSchedule = new SimpleSchedule(0.05,0.02,50000)
-  var savePath = "./saves/"
+  val fsep = System.getProperty("file.separator")
+  var savePath = "."+fsep+"saves"+fsep
   var printInfo = true
   var myId = 0//id
   val maxBest = 5
@@ -40,6 +41,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   var burstMutationFreq = 25
   var spawningFreq = 50
   var spawned = false
+  var saveFreq = 0
   val freqIncrementFactor = 1.15
   var cellRepopulator:Repopulator[CellPopulationD] = new BasicRepopulator
   var netRepopulator:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
@@ -71,6 +73,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     schedule = cs
   }
   def setSavePath(path:String) : Unit = { savePath = path }
+  def setSaveFreq(frq:Int) : Unit = { saveFreq = frq }
   def setUseFullDataFeed(b:Boolean) : Unit = { partialDataFeed = !b }
   def setMaximumSize(maxCells2:Int,maxBlocks2:Int) : Unit = {
     maxCells = maxCells2
@@ -114,11 +117,11 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               if (rM != null) {
                 val err = rnn.evolinoValidate(d2,d3,actFun,rM)
                 var fn = 1000000.0
-                if (err > 0.0) {
-                  fn = 1.0/err
-                }
-                else if (err.isNaN) {
+                if (err.isNaN) {
                   fn = 0
+                }
+                else if (err > 0.0) {
+                  fn = 1.0/err
                 }
                 rnn.setFitness(fn)
               }
@@ -257,6 +260,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             write(fileName)
             writeNow = false
           }
+          else if (schedule.getCurrent % saveFreq == 0) {
+            val s0 = lastBestFitness.toString
+            val fstring = if (s0.length > 6) s0.substring(0,6) else { s0 }
+            val fileName = new File(savePath+"/evolver_g"+schedule.getCurrent+"id"+myId+"f"+fstring+".xml")
+            write(fileName)
+          }
           supervisor ! StatusMessage(bestFitness,myId)
           schedule.update(netPopulation.getBestFitness)
           if (schedule.getCurrent == schedule.getMax) {
@@ -313,6 +322,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     if (learningMode >= 3) {
       e.initSVMLearner(svmCols,epsilonRegression)//svmNodes,
     }
+    e.setSaveFreq(saveFreq)
   }
   def sliceData : (List[Array[Double]],List[Array[Double]],List[Array[Double]],List[Array[Double]]) = {
     val (d0,d0b) = if (partialDataFeed) { 
@@ -571,7 +581,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     if (useCompression) {
       val f2 = new File(f.getPath+".zip")
       val xmls = toXML.toString.getBytes
-      val compressor = new DeflaterOutputStream(new FileOutputStream(f2))//Deflater
+      val compressor = new DeflaterOutputStream(new FileOutputStream(f2))
       val l = xmls.length
       var i = 0
       while (i < l) {
@@ -579,8 +589,6 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
         i += 1
       }
       compressor.close
-      //compressor.setInput(xmls)
-      //compressor.finish()
       
     }
     else {

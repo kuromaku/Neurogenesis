@@ -745,6 +745,8 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	  for (c <- conns) {
 	    sum += c._2._1*c._2._1
 	  }
+	  scala.math.log(2+sum)
+	  /*
 	  val mod = scala.math.log(size)
 	  if (mod >= 1) {
 	    sum/mod
@@ -752,6 +754,7 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	  else {
 	    sum
 	  }
+	  */
 	}
 	def dist(nc2:NeuralConnsD) : Double = {
 	  var d = 0.0

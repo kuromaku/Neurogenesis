@@ -148,10 +148,10 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
        ncr(i) = rConns(0).makeClone//same as above
        ncr(i).setMax(mid+out)
      }
-     for (j <- 0.to((Math.random*out).toInt)) {
+     for (j <- 0.to((scala.math.random*out).toInt)) {
        ncf(i).addRandomConnection(rnd)
      }
-     for (j <- 0.to((Math.random*3).toInt)) {
+     for (j <- 0.to((scala.math.random*3).toInt)) {
        ncr(i).addRandomConnection(rnd)
      }
      

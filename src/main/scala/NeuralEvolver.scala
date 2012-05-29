@@ -85,6 +85,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   }
   def act : Unit = {
     if (learningMode == 2) {
+      //Evolino requires an initialized data matrix
       initMatrix
     }
     if (dataSets.apply(0).size < minFeedLength) {
@@ -106,9 +107,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             if (learningMode < 2 || learningMode == 4) {
               val res = rnn.feedData(d0,actFun)
               var mse = totalError(d1,res)
+              val closeToConstant = calculateVariability(res)
               var fn = 1.0/mse
               if (fn.isNaN()) {
                 fn = 0
+              }
+              else if (closeToConstant < 0.05 && closeToConstant < fn) {
+                fn = closeToConstant
               }
               rnn.setFitness(fn)
             }
@@ -116,6 +121,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               val rM = rnn.linearRegression(d0,matrix,actFun) //NeuralOps.list2Matrix(dataSets.apply(1))
               if (rM != null) {
                 val err = rnn.evolinoValidate(d2,d3,actFun,rM)
+                //val closeToConstant = calculateVariability(res)
                 var fn = 1000000.0
                 if (err.isNaN) {
                   fn = 0
@@ -132,13 +138,19 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             else if (learningMode == 3) { //svm
               val res = rnn.svmRegression(d0,svmCols,actFun,svmPar,d2)
               val err = totalError(d3,res)
-              
-              if (!err.isNaN && err > 0) {
-                rnn.setFitness(1.0/err)
+              val closeToConstant = calculateVariability(res)
+              if (closeToConstant < 0.05 || closeToConstant.isNaN) {
+                rnn.setFitness(0)
               }
               else {
-                rnn.setFitness(0.0)
+                if (!err.isNaN && err > 0) {
+                  rnn.setFitness(1.0/err)
+                }
+                else {
+                  rnn.setFitness(0.0)
+                }
               }
+
             }
           }
           netPopulation.sortPop
@@ -264,7 +276,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             val s0 = lastBestFitness.toString
             val fstring = if (s0.length > 6) s0.substring(0,6) else { s0 }
             val fileName = new File(savePath+"/evolver_g"+schedule.getCurrent+"id"+myId+"f"+fstring+".xml")
-            write(fileName)
+            saveEvolver(fileName)
           }
           supervisor ! StatusMessage(bestFitness,myId)
           schedule.update(netPopulation.getBestFitness)
@@ -506,6 +518,21 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def mixPopulations(evolver2:NeuralEvolver,mixProb:Double) : Unit = {
     cellPop.mixPopulations(evolver2.getCellPop, mixProb)
   }
+  def calculateVariability(a:Array[Array[Double]]) : Double = {
+    val cols = a(0).length
+    val vars = new Array[Double](cols)
+    var minsum = Double.MaxValue
+    val maxRows = if (a.length < 50) a.length else 50 //Maybe it's enough to consider only a few values
+    for (c <- 0 until cols) {
+      for (r <- 1 until maxRows) {
+        vars(c) += scala.math.abs(a(r)(c)-a(r-1)(c))
+      }
+      if (vars(c) < minsum) {
+        minsum = vars(c)
+      }
+    }
+    minsum
+  }
   def setActFun(actFun2:Function1[Double,Double]) : Unit = { actFun = actFun2 }
   def setBurstFreq(freq:Int) : Unit = { burstMutationFreq = freq }
   def setPrintInfo(b:Boolean) : Unit = { printInfo = b }
@@ -577,6 +604,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       false
     }
   }
+  /*Writes this instance into a given file possibly using compression
+   * 
+   */
   def saveEvolver(f:File) : Unit = {
     if (useCompression) {
       val f2 = new File(f.getPath+".zip")

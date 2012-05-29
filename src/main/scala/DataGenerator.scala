@@ -1,5 +1,7 @@
 package neurogenesis.util
-
+/*This class is only used for generating simple data for testing purposes
+ * 
+ */
 class DataGenerator {
   def createInputData(num:Int) : Array[Array[Double]] = {
     val r = Array.ofDim[Double](num,4)

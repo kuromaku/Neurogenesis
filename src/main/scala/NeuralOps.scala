@@ -178,4 +178,28 @@ object NeuralOps {
       Plotting.hold(false)
     }
   }
+  def plotResults(l:List[Array[Array[Double]]],l2:List[Array[Array[Double]]]) : Unit = {
+    val s = l.size
+    val c = l.apply(0)(0).length
+    val maxPlots = 6
+    
+    for (i <- 0 until s) {
+      val m1 = array2Matrix(l.apply(i))
+      val m2 = array2Matrix(l2.apply(i))
+      val rows = m1.numRows
+      val cols = if (m1.numCols > maxPlots) maxPlots else m1.numCols
+      val range = 0 until rows
+      val range2 = 0 until m2.numRows
+      val points = new Array[Int](rows)
+      for (j <- 0 until rows) { points(j) = j }
+      val p = ArrayI.apply(points)
+      for (j <- 0 until cols) {
+        Plotting.subplot(cols*s,1,(i*c)+j+1)
+        Plotting.plot(p,m2.apply(range,j),'-',"b")
+        Plotting.hold(true)
+        Plotting.plot(p,m1.apply(range,j),'-',"r")
+        Plotting.hold(false)
+      }
+    }
+  }
 }

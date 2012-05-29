@@ -21,7 +21,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   val blockSize = cellBlocks(0).getSize - 3 //
   val out = outputLayer.length
   //var firstInput = true
-  val synapses = cellBlocks(0).getSize //number of inputs the blocks have 
+  val synapses = cellBlocks(0).getSize //number of inputs the blocks have (gates + memory cells)
   val midPoint = in + numBlocks*synapses //after these only output cells remain
   
   def activate(inputs:Array[Double],actFun:Function1[Double,Double]) : Array[Double] = {
@@ -204,15 +204,16 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val stateSize = out + numBlocks*blockSize
     val dSize = inputData.size
     val mDat = new Array[Double](dSize*stateSize)
+    val m = new DenseMatrix(dSize,stateSize,mDat)
     var idx = 0
     for (db <- inputData) {
       val od = evolinoActivate(db,actFun)
       for (j <- 0 until stateSize) {
-        mDat(idx*stateSize+j) = od(j)
+        m.update(idx,j,od(j))
       }
       idx += 1
     }
-    new DenseMatrix(dSize,stateSize,mDat)
+    m
   }
   /*Feeds data and returns results in a format that can be used by libsvm
    * 
@@ -273,15 +274,21 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   }
   def linearPredict(inputData:Traversable[Array[Double]],inputData2:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double]) : Array[Array[Double]] = {
     val M = linearRegression(inputData,targetMatrix,actFun)
-    val output0 = evolinoFeed(inputData2,actFun)
-    val Y = output0 * M
-    val res = Array.ofDim[Double](Y.numRows,Y.numCols)
-    for (i <- 0 until res.length) {
-      for (j <- 0 until res(i).length) {
-        res(i)(j) = Y.apply(i,j)
-      }
+    if (M == null) {
+      //let's return a zero matrix if a problem occurs in calculating the regression matrix
+      Array.ofDim[Double](targetMatrix.numRows,targetMatrix.numCols)
     }
-    res
+    else {
+      val output0 = evolinoFeed(inputData2,actFun)
+      val Y = output0 * M
+      val res = Array.ofDim[Double](Y.numRows,Y.numCols)
+      for (i <- 0 until res.length) {
+        for (j <- 0 until res(i).length) {
+          res(i)(j) = Y.apply(i,j)
+        }
+      }
+      res
+      }
   }
   def evolinoValidate(in2:Traversable[Array[Double]],out2:Traversable[Array[Double]],actFun:Function1[Double,Double],rMatrix:DenseMatrix[Double]) : Double = {
     var error = 0.0
@@ -315,6 +322,9 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     cloned.setFitness(fitness)
     cloned
   }
+  /**Sets the fitness value for this network and its each individual cell
+   * 
+   */
   override def setFitness(f:Double) : Unit = {
     for (i <- 0 until in) {
       inputLayer(i).setFitness(f)
@@ -404,7 +414,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   }
 
   
-  // SparseGraph[_ >: Nothing,_ >: Nothing]
+  // In order to display the network using JUNG we need to transorm it to its SparseGraph representation
   def toGraph :  SparseGraph[Int,String] = {
     val graph = new SparseGraph[Int,String]()
     val totalNodes = midPoint + out// + numBlocks*3 //gates and all

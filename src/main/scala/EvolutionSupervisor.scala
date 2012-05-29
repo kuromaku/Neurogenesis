@@ -166,11 +166,22 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           if (exitCounter == evolvers.size) {
             running = false
             var bn = gatherBest.toArray
-            bn = bn.sortWith(_.getFitness < _.getFitness)
             tArea.append("All done.\n")
-            tArea.append("The resulting best net in XML:\n")
-            XMLOperator.runPrettyPrint(bn(bn.length-1).toXML,tArea)
-            tArea.append("\n")
+            if (bn.length > 0) {
+              bn = bn.sortWith(_.getFitness < _.getFitness)
+              tArea.append("The resulting best net in XML:\n")
+              val brnn = bn(bn.length-1)
+              if (brnn != null) {
+                XMLOperator.runPrettyPrint(brnn.toXML,tArea)
+                tArea.append("\n")
+              }
+              else {
+                tArea.append("No best net yet to display.\n")
+              }
+            }
+            else {
+              tArea.append("No best net yet to display.\n")
+            }
             if (printInfo) {
               reporter ! ProgressMessage("Supervisor says Goodbye!")
             }
@@ -312,10 +323,10 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     exitInProgress = false
   }
   def getSuperStar : RNND = {
-    var found = false
     //var idx = 4
     var best = evolvers(0)._1.getBest
     var bi = 1
+    var idx = 0
     var f = 0.0
     if (best != null) {
       f = best.getFitness
@@ -326,12 +337,12 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
         val f2 = candidate.getFitness
         if (f2 > f) {
           f = f2
-          best = candidate
+          idx = bi
         }
       }
       bi += 1
     }
-    best
+    evolvers(idx)._1.getBest
   }
   def printInfo(b:Boolean) : Unit = {
     printInfo = b

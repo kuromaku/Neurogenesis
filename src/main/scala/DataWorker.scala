@@ -29,12 +29,14 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	var svmCols = List[Array[Array[Double]]]()
 	var svmReady = false
 	var normalMode = true
+	var allFromOneArray = false
 	def getCount : Int = counter
 	def getData(idx:Int) : List[Array[Double]] = data.apply(idx)
 	def normalizeData(b:Boolean) : Unit = { normalize = b }
 	//def getNodes(idx:Int) = svmNodes.apply(idx)
 	def getCols(idx:Int) = svmCols.apply(idx)
 	def setMode(b:Boolean) : Unit = { normalMode = b }
+	def setDivideData(b:Boolean) : Unit = { allFromOneArray = b }
 	def checkData : Unit = {
 	  if (counter == 2) {
 	    if (data.head(0).length == data.tail.head(0).length) {
@@ -65,15 +67,20 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	  loop {
 	    react {
 	      case LoadData(files) => {//
-	        for (file <- files) {
-	          if (file.exists && file.canRead()) {
-	            readMatrix(file)
-	            if (counter > 1)
-	              reporter ! ProgressMessage("Dataworker finished reading a new data array from file "+file.getPath())
-	            else
-	              reporter ! ProgressMessage("Dataworker finished reading the first data array from file "+file.getPath())
-	            worker ! AnotherDataList(data.apply(counter-1))
+	        if (!allFromOneArray) {
+	          for (file <- files) {
+	            if (file.exists && file.canRead()) {
+	              readMatrix(file)
+	              if (counter > 1)
+	                reporter ! ProgressMessage("Dataworker finished reading a new data array from file "+file.getPath())
+	              else
+	                reporter ! ProgressMessage("Dataworker finished reading the first data array from file "+file.getPath())
+	              worker ! AnotherDataList(data.apply(counter-1))
+	            }
 	          }
+	        }
+	        else {
+	          divideData(files.head)
 	        }
 	      }
 	      case AnotherArray(arr) => { //Received after calculating the validation results
@@ -157,6 +164,36 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	    matrix2List(mat)
 	    counter += 1
 	  }
+	}
+	def divideData(src: File) : Unit = {
+	  val fileIn = new BufferedInputStream(new FileInputStream(src))
+	  val mat = Storage.loadtxt(fileIn)
+	  val rows = mat.numRows
+	  val cols = mat.numCols
+	  val rows1 = (rows*0.75).toInt
+	  val rows2 = rows - rows1
+	  val arr1 = Array.ofDim[Double](rows1,cols)
+	  val arr2 = Array.ofDim[Double](rows1,cols)
+	  for (i <- 0 until rows1) {
+	    for (j <- 0 until cols) {
+	      arr1(i)(j) = mat.apply(i,j)
+	      arr2(i)(j) = mat.apply(i+1,j)
+	    }
+	  }
+	  val arr3 = Array.ofDim[Double](rows2-1,cols)
+	  val arr4 = Array.ofDim[Double](rows2-1,cols)
+	  for (i <- 0 until (rows2-1)) {
+	    for (j <- 0 until cols) {
+	      arr3(i)(j) = mat.apply(rows1+i,j)
+	      arr4(i)(j) = mat.apply(rows1+i+1,j)
+	    }
+	  }
+	  data = List(arr1.toList,arr2.toList,arr3.toList,arr4.toList)
+	  counter = 4
+	  for (i <- 0 until 4) {
+	    worker ! AnotherDataList(data.apply(i))
+	  }
+	  normalized = true //TODO: change this before final release
 	}
 	/*Normalizes all loaded data arrays so that the values lie between the range -1,1. 
 	 *Should be used only when all the data has been loaded into memory as this ensures consistency.

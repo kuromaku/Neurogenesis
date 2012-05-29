@@ -30,6 +30,7 @@ import java.awt.Image
 //import java.awt.Point
 import javax.imageio.ImageIO
 import scalala.library.random.MersenneTwisterFast
+import scalala.library.Storage
 import libsvm.svm_parameter
 import libsvm.svm_node
 
@@ -953,6 +954,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	val readMatrix = new MenuItem("Read Matrix")
 	val readRNN = new MenuItem("Read RNN")
 	val readEvolver = new MenuItem("Read Evolver")
+	val readData2 = new MenuItem("Read data(*)")
 	//val autoSaveButton = new CheckMenuItem("AutoSave")
 	val displayNet = new MenuItem("Display Best RNN") { enabled_=(false) }
 	val layoutSelector = new ComboBox(Seq[String]("RNN","FR","KK","ISOM","Spring"))
@@ -994,6 +996,8 @@ class EvolverInterface extends SimpleSwingApplication {
 	    contents += writeConfigNow
 	    contents += new Separator
 	    contents += clearData
+	    contents += new Separator
+	    contents += readData2
 	  }
 	  contents += new Menu("Util") {
 	    
@@ -1032,7 +1036,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	}
 	menuBar_=(mBar)
 	minimumSize_=(new Dimension(dimX,dimY))
-	listenTo(openFiles,start,stopEvolution,popSizeSlider,plotData,runDiagnostics,
+	listenTo(openFiles,start,stopEvolution,popSizeSlider,plotData,runDiagnostics,readData2,
 	    configureNow,writeConfigNow,readRNN,readEvolver,restoreRNNs,generateData,modeSelector.selection,
 	    configurationReady,calculateValidationError,runSVMRegression,scheduleChooser.selection,
 	    writeBestNet,displayNet,runLeastSquares,clearReportArea,functionChooser.selection,
@@ -1058,6 +1062,21 @@ class EvolverInterface extends SimpleSwingApplication {
 	      }
 	    }
 	    
+	  }
+	  case ButtonClicked(`readData2`) => {
+	    val reval = fChooser.showOpenDialog(contents.head)
+	    if (reval.toString.equals("Approve")) {
+	      dworker.setDivideData(true)
+	      dworker ! LoadData(fChooser.selectedFiles)
+	      plotData.enabled_=(true)
+	      clearData.enabled_=(true)
+	      generateData.enabled=(false)
+	      if (netReady) {
+	        makePredictions.enabled_=(true)
+	      }
+	      reportArea.append("Beware! Creating the whole data set from a single data array.\n")
+	      reportArea.append("Use 'Select Data' if this is not what you want.\n")
+	    }
 	  }
 	  case ButtonClicked(`generateData`) => {
 	    dworker.generateData
@@ -1147,10 +1166,6 @@ class EvolverInterface extends SimpleSwingApplication {
 	    val bestRNN = supervisor.getSuperStar
 	    bestRNN.reset
 	    val svmParam = getSVMParameter(bestRNN)
-        //svmParam.weight_label = new Array[Int](0)
-        //svmParam.weight = new Array[Double](0)
-        
-        //val svmNodes = dworker.getNodes(1)
         val svmCols = dworker.getCols(0)
         val results = bestRNN.svmRegression(dworker.getData(0),svmCols,actFun,svmParam,dworker.getData(2))
         val q = dworker.getData(3).toArray
@@ -1162,6 +1177,8 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`stopEvolution`) => {
 	    supervisor ! "Exit"
+	    reportArea.append("Sending messages to all evolvers so that they will stop after finishing the current step.\n")
+	    reportArea.append("This may take some time...\n")
 	    start.text_=("Start Again!")
 	    start.enabled_=(true)
 	    calculateValidationError.enabled_=(true)
@@ -1189,27 +1206,20 @@ class EvolverInterface extends SimpleSwingApplication {
 	    dataPanel.text_=("")
 	    openFiles.enabled_=(true)
 	    generateData.enabled_=(true)
+	    dworker.setDivideData(false)
 	  }
 	  case ButtonClicked(`calculateValidationError`) => {
 	    val bestRNN = supervisor.getSuperStar.makeClone
 	    bestRNN.feedData(dworker.getData(0),actFun)
 	    val res1 = bestRNN.feedData(dworker.getData(2),actFun)
-	    reportArea.append("NOTE: Not yet implemented correctly if you are using Evolino.\n")
+	    reportArea.append("NOTE: Not yet implemented correctly if you are using either Evolino or SVMBoost.\n")
 	    reportArea.append("Validation error was: "+NeuralOps.totalError(dworker.getData(3),res1.toList)+"\n")
 	    dworker ! AnotherArray(res1)
 	  }
 	  case ButtonClicked(`makePredictions`) => {
-	    evolutionMode = modeSelector.selection.index//modes.indexOf(modeSelector.selection.item)
+	    evolutionMode = modeSelector.selection.index
 	    //println(evolutionMode)
 	    predict(dworker.getCount-1)
-	    /*
-	    if (evolutionMode < 2) {
-	      predict(2)
-	    }
-	    else {
-	      predict(4)
-	    }
-	    */
 	  }
 	  case ButtonClicked(`clearReportArea`) => {
 	    reportArea.text_=("All clear!\n")
@@ -1331,24 +1341,6 @@ class EvolverInterface extends SimpleSwingApplication {
 	    if (reval.toString.equals("Approve")) {
 	      restoreRNND(fChooser.selectedFile)
 	      debugRun.enabled_=(true)
-	      /*
-	      val stringRep = readXML(fChooser.selectedFile).substring(38)//<?xml version='1.0' encoding='UTF-8'?>
-	      reportArea.append(stringRep)
-	      val xmlRep = XML.loadString(stringRep)
-	      reportArea.append("\n")
-	      reportArea.append(xmlRep.toString)
-	      */
-	      /*
-	      val xrep = readElem(fChooser.selectedFile)
-	      println("Size: "+xrep.size)
-	      val q = XMLOperator.customFilter(xrep,"NeuralConnsD")
-	      for (q0 <- q) {
-	        reportArea.append(q0.toString+"\n")
-	      }
-	      reportArea.append("the representation is: "+xrep+"\n")
-	      //bRNN.fromXML(xrep)
-	       * 
-	       */
 	    }
 
 	    else {
@@ -1385,7 +1377,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
     if (rnn != null) {
     var j = 0
-    var res = new Array[Array[Double]](0)//
+    var res = List[Array[Array[Double]]]() //
     rnn.reset
     val resArea = new TextArea
     def append2Area(resA:Array[Array[Double]]) : Unit = {
@@ -1400,35 +1392,41 @@ class EvolverInterface extends SimpleSwingApplication {
     if (evolutionMode < 2) {
       while (j <= idx) {
         val a1 = dworker.getData(j) //
-        res = rnn.feedData(a1,actFun)
+        val res2 = rnn.feedData(a1,actFun)
+        res = res.:+(res2)
         resArea.append("Output for input: "+j+"\n")
-        append2Area(res)
+        append2Area(res2)
         j += 2
       }
     }
     else if (evolutionMode == 2 && idx >= 3) {
       if (idx == 3) {
-        res = rnn.linearPredict(dworker.getData(0),dworker.getData(2),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
-        append2Area(res)
+        val res2 = rnn.linearPredict(dworker.getData(0),dworker.getData(2),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
+        append2Area(res2)
+        res = res.:+(res2)
       }
       else {
         val B = rnn.linearRegression(dworker.getData(0),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
         val out1 = rnn.evolinoFeed(dworker.getData(2)++dworker.getData(4),actFun)
         val Y = out1 * B
+        val res2 = Array.ofDim[Double](Y.numRows,Y.numCols)
         for (i <- 0 until Y.numRows) {
           for (j <- 0 until Y.numCols) {
             resArea.append(Y.apply(i,j).toString+" ")
+            res2(i)(j) = Y.apply(i,j)
           }
           resArea.append("\n")
         }
+        res = res.:+(res2)
       }
     }
     else if (evolutionMode == 3 && idx >= 3) {
       dworker.initSVM
       val p = getSVMParameter(rnn)
       val data2 = if (idx < 5) dworker.getData(2) else dworker.getData(2) ++ dworker.getData(4)
-      res = rnn.svmRegression(dworker.getData(0),dworker.getCols(0),actFun,p,data2)
-      append2Area(res)
+      val res2 = rnn.svmRegression(dworker.getData(0),dworker.getCols(0),actFun,p,data2)
+      append2Area(res2)
+      res = res.:+(res2)
     }
     else {
       resArea.append("Not yet implemented for selected options...\n")
@@ -1442,7 +1440,8 @@ class EvolverInterface extends SimpleSwingApplication {
       object plotAction extends Action("Plot Predictions") {
         def apply : Unit = {
           if (idx == 3) {
-            NeuralOps.plotResults(res,dworker.getData(3).toArray)
+            val l2 = List(dworker.getData(1).toArray,dworker.getData(3).toArray)
+            NeuralOps.plotResults(res,l2)
           }
           else if (idx > 3 ){
             val data2 = dworker.getData(3)
@@ -1451,11 +1450,24 @@ class EvolverInterface extends SimpleSwingApplication {
             for (i <- rows until res.length) {
               emptyList = emptyList.:+(new Array[Double](cols))
             }
-            NeuralOps.plotResults(res,(data2++emptyList).toArray)
+            NeuralOps.plotResults(res.apply(1),(data2++emptyList).toArray)
           }
         }
       }
       action_=(plotAction)
+    }
+    object savePredictions extends MenuItem("Save") {
+      object saveAction extends Action("Save") {
+        def apply : Unit = {
+          val fs = new FileChooser
+          val reval = fs.showSaveDialog(new FlowPanel)
+          if (reval.toString == "Approve") {
+            val sf = fs.selectedFile
+            Storage.storetxt(new FileOutputStream(sf),NeuralOps.array2Matrix(res.apply(res.size-1)))
+          }
+        }
+      }
+      action_=(saveAction)
     }
     val predictionsPane = new GridPanel(2,1) {
       /*
@@ -1471,10 +1483,14 @@ class EvolverInterface extends SimpleSwingApplication {
     val resFrame = new Frame {
       title_=("PredictionsFrame")
       contents_=(predictionsPane)
+      val predFiles = new Menu("File") {
+        contents += savePredictions
+      }
       val predMenu = new Menu("Predictions") {
         contents += drawPredictions
       }
       val predMBar = new MenuBar {
+        contents += predFiles
         contents += predMenu
       }
       menuBar_=(predMBar)

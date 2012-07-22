@@ -7,7 +7,7 @@ trait NetRepopulator[T,U] {
   def permute(l:Int) : Array[Int] = {
     val idx = new Range(0,l,1).toArray
     for (i <- 0.until(l)) {
-      val j = (Math.random*l).toInt
+      val j = (math.random*l).toInt
       val aux = idx(i)
       idx(i) = idx(j)
       idx(j) = aux

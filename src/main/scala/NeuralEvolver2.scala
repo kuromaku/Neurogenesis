@@ -11,6 +11,8 @@ class NeuralEvolver2(cellPop:CellPopulationD,netPop:NetPopulationD,rnd:MersenneT
   var schedule: CoolingSchedule = new SimpleSchedule(0.05,0.02,50000)
   val bestNets = new Array[RNND](5)
   val distribution = new CauchyDistribution(0.03)
+  var cMeasure = new SimpleMeasure
+  
   def getNet(idx:Int) : RNND = {
     netPop.getRNN(idx)
   }
@@ -19,6 +21,6 @@ class NeuralEvolver2(cellPop:CellPopulationD,netPop:NetPopulationD,rnd:MersenneT
     netRepopulator.repopulate(netPop,cellPop,bestNets,distribution,schedule,rnd,discardRate)
   }
   def setFitness(idx:Int,f:Double) : Unit = {
-    netPop.getRNN(idx).setFitness(f)
+    netPop.getRNN(idx).setFitness(f,cMeasure,3)
   }
 }

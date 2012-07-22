@@ -20,12 +20,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   def getBlockPop = blockPop
   def getOutPop = outputPop
   def getStateLength : Int = { blockPop(0)(0).getSize + outputs }
-  //var mutProb = 0.1d
-  //var flipProb = 0.01d
+  def getNetworkSize : Int = { blockPop(0)(0).getSize*blocks + inputs + outputs}
   var connProb = 0.5
-  //def setMutProb(mp:Double) : Unit = { mutProb = mp }
-  //def setFlipProb(fp:Double) : Unit = { flipProb = fp }
-  //val random = new MersenneTwisterFast
   
   def init(scale:Double,outBias:Double,rnd:MersenneTwisterFast,numFor:Int=5,numRec:Int=3) : Unit = {
     val cDist = new CauchyDistribution(scale)

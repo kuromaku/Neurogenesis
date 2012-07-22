@@ -43,8 +43,9 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   def equals(other:OutCellD) : Boolean = {
     (bias == other.getBias && rConns == other.getRecurrent)
   }
-  override def setFitness(f:Double) : Unit = {
-    val c = rConns.calculateComplexity
+  def gatherConnections : List[NeuralConnsD] = { List(rConns) }
+  override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
+    val c = measure.calculateComplexity(List(rConns),cBias)
     if (c != 0.0) {
       if (f/c > fitness) {
         fitness = f/c

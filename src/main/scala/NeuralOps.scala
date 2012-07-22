@@ -155,7 +155,7 @@ object NeuralOps {
       rArea.append("Res:\n"+res.toString+"\n")
       rArea.append("Target:\n"+m5.toString+"\n")
     } catch {
-      case _ => rArea.append("Could not complete linear regression because of a singular inversion matrix.")
+      case _ => rArea.append("Could not complete linear regression because of a singular matrix.")
     }
   }
   def plotResults(a:Array[Array[Double]],a2:Array[Array[Double]]) : Unit = {
@@ -187,15 +187,19 @@ object NeuralOps {
       val m1 = array2Matrix(l.apply(i))
       val m2 = array2Matrix(l2.apply(i))
       val rows = m1.numRows
+      val rows2 = m2.numRows
       val cols = if (m1.numCols > maxPlots) maxPlots else m1.numCols
       val range = 0 until rows
-      val range2 = 0 until m2.numRows
+      val range2 = 0 until rows2
       val points = new Array[Int](rows)
       for (j <- 0 until rows) { points(j) = j }
       val p = ArrayI.apply(points)
+      val points2 = new Array[Int](rows2)
+      for (j <- 0 until rows2) { points2(j) = j }
+      val p2 = ArrayI.apply(points2)
       for (j <- 0 until cols) {
         Plotting.subplot(cols*s,1,(i*c)+j+1)
-        Plotting.plot(p,m2.apply(range,j),'-',"b")
+        Plotting.plot(p2,m2.apply(range2,j),'-',"b")
         Plotting.hold(true)
         Plotting.plot(p,m1.apply(range,j),'-',"r")
         Plotting.hold(false)

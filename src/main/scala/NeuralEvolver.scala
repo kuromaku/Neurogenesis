@@ -19,6 +19,13 @@ import scalala.tensor.dense.DenseMatrix
 import scalala.library.random.MersenneTwisterFast
 import libsvm._
 
+/**
+ * NeuralEvolver brings together a population of cells and a population of networks combined from those cells which
+ * are evolved one step at a time
+ */
+/*TODO: Add an ability to evolve in different states which add varying restrictions to possible connections between the cells
+ * Also, it would be cool to enable varying connection costs between separate layers of the networks.
+ */
 class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,reporter:ProgressReporter,rnd:MersenneTwisterFast,discardRate:Double=0.75) extends Actor {
   var proceed = true
   var dataSets = List[List[Array[Double]]]() // 0 training inputs, 1 training targets, 2 validation inputs, 3 validation targets...
@@ -45,6 +52,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   val freqIncrementFactor = 1.15
   var cellRepopulator:Repopulator[CellPopulationD] = new BasicRepopulator
   var netRepopulator:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
+  var cMeasure:ComplexityMeasure = new SimpleMeasure
+  val complexityBias: Double = cellPop.getNetworkSize //TODO: Test alternatives
   var mutateNow = false
   var updatingNow = false
   var writeNow = false
@@ -69,6 +78,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def setRepopulator(rp:Repopulator[CellPopulationD]) : Unit = { cellRepopulator = rp }
   def setNetRepopulator(nrp:NetRepopulator[NetPopulationD,CellPopulationD]) : Unit = { netRepopulator = nrp }
   def setDistribution(dist2:Distribution) : Unit = { distribution = dist2 }
+  def setMeasure(measure2:ComplexityMeasure) : Unit = { cMeasure = measure2 }
+  
   def setSchedule(cs:CoolingSchedule) : Unit = {
     schedule = cs
   }
@@ -115,7 +126,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               else if (closeToConstant < 0.05 && closeToConstant < fn) {
                 fn = closeToConstant
               }
-              rnn.setFitness(fn)
+              rnn.setFitness(fn,cMeasure,complexityBias)
             }
             else if (learningMode == 2) { //Evolino
               val rM = rnn.linearRegression(d0,matrix,actFun) //NeuralOps.list2Matrix(dataSets.apply(1))
@@ -129,10 +140,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
                 else if (err > 0.0) {
                   fn = 1.0/err
                 }
-                rnn.setFitness(fn)
+                rnn.setFitness(fn,cMeasure,complexityBias)
               }
               else {
-                rnn.setFitness(0)
+                rnn.setFitness(0,cMeasure,complexityBias)
               }
             }
             else if (learningMode == 3) { //svm
@@ -140,14 +151,14 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               val err = totalError(d3,res)
               val closeToConstant = calculateVariability(res)
               if (closeToConstant < 0.05 || closeToConstant.isNaN) {
-                rnn.setFitness(0)
+                rnn.setFitness(0,cMeasure,complexityBias)
               }
               else {
                 if (!err.isNaN && err > 0) {
-                  rnn.setFitness(1.0/err)
+                  rnn.setFitness(1.0/err,cMeasure,complexityBias)
                 }
                 else {
-                  rnn.setFitness(0.0)
+                  rnn.setFitness(0.0,cMeasure,complexityBias)
                 }
               }
 
@@ -330,6 +341,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     e.setNetRepopulator(netRepopulator)
     e.setSchedule(schedule.makeClone)
     e.setEvoMode(learningMode)
+    e.setMeasure(cMeasure)
     e.setMaximumSize(maxCells,maxBlocks) //system resource demands grow rather fast especially if SVMBoost is used with network size
     if (learningMode >= 3) {
       e.initSVMLearner(svmCols,epsilonRegression)//svmNodes,
@@ -378,6 +390,22 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     (d0,d1,d2,d3)
   }
   def addToBestNets(net:RNND) : Boolean = {
+    val idx = bestNets.indexWhere(_ == null)
+    if (idx >= 0) {
+      bestNets(idx) = net.makeClone
+      true
+    }
+    else {
+      bestNets = bestNets.sortWith(_.getFitness < _.getFitness)
+      if (bestNets(0).getFitness < net.getFitness) {
+        bestNets(0) = net.makeClone
+        true
+      }
+      else {
+        false
+      }
+    }
+    /*
     var emptySlot = false
     var emptyIdx = 0
     for (i <- 0 until bestNets.length) {
@@ -405,18 +433,18 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
         false
       }
     }
+    */
   }
   def bestNetsReady : Boolean = {
     !bestNets.exists(_ == null)
   }
   def countBest : Int = {
-    var c = 0
-    for (i <- 0 until bestNets.length) {
-      if (bestNets(i) != null) c += 1
-    }
-    c
+    bestNets.count(_ != null)
   }
   def getBest : RNND = {
+    val networks = bestNets.filter(_ != null)
+    networks.last //I think this should work correctly
+    /*
     var idx = bestNets.length - 1
     var found = false
     var bf = 0.0
@@ -432,15 +460,40 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       idx -= 1
     }
     bestNets(idx2)
+    */
+  }
+  def getBestIfPossible(mf:Double) : RNND = {
+    if (bestNets == null) {
+      null
+    }
+    else {
+      val networks0 = bestNets.filter(_ != null)
+      if (networks0.length > 0) {
+        val candidates = networks0.find(_.getFitness == mf)
+        if (candidates == None) {
+          null
+        }
+        else {
+          candidates.get
+        }
+      }
+      else {
+        null
+      }
+    }
   }
   def getAllTheBest : List[RNND] = {
+    val networks = bestNets.filter(_ != null).toList
+    networks
+    /*
     var lobn = List[RNND]()
-    for (i <- 0 until maxBest) {
+    for (i <- 0 until bestNets.length) {
       if (bestNets(i) != null) {
         lobn = lobn :+ (bestNets(i))
       }
     }
     lobn
+    */
   }
   def meanSquaredError(a1:Array[Double],a2:Array[Double]) : Double = {
     var error = 0d
@@ -575,33 +628,31 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   }
   def saveBestNet(f:File) : Boolean = {
     val fw = new FileWriter(f)
-    val found = false
-    var idx = 4
-    while (idx >= 0 && bestNets(idx) == null) {
-      idx -= 1
-    }
-    
-    if (idx > 0) {
-      
-      val netAsXML = bestNets(idx).toXML
-      scala.xml.XML.write(fw,netAsXML.head,"UTF-8",true,null)
-      val fxml = <Fitness>{bestNets(idx).getFitness}</Fitness>
-      scala.xml.XML.write(fw,fxml,"UTF-8",false,null)
-      netAsXML.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
-      fw.close
-      
-      if (learningMode == 2) {
-        bestNets(idx).reset
-        val rM = bestNets(idx).linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
-        val fw2 = new FileOutputStream(f.getParent()+"weightMatrix.txt")
-        Storage.storetxt(fw2,rM)//
-        fw2.close
-      }
-      
-      true
+    val networks = bestNets.filter(_ != null).toList
+    if (networks.size < 1) {
+      false
     }
     else {
-      false
+      for (n <- networks) {
+      
+        val netAsXML = n.toXML
+        scala.xml.XML.write(fw,netAsXML.head,"UTF-8",true,null)
+        val fxml = <Fitness>{n.getFitness}</Fitness>
+        scala.xml.XML.write(fw,fxml,"UTF-8",false,null)
+        netAsXML.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
+        fw.close
+      
+        if (learningMode == 2) {
+          n.reset
+          val rM = n.linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
+          val fw2 = new FileOutputStream(f.getParent()+"weightMatrix.txt")
+          Storage.storetxt(fw2,rM)//
+          fw2.close
+        }
+      
+        
+      }
+      true
     }
   }
   /*Writes this instance into a given file possibly using compression

@@ -31,6 +31,8 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   var saveFrequency = 5000L
   
   var exitCounter = 0
+  var totalCounter = 0L
+  
   var saveOnExit = saveWhenExiting
   var running = false
   var maxID = 0
@@ -134,6 +136,10 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             else {
               mixingStep += 1
             }
+          }
+          totalCounter += 1
+          if (totalCounter % 100 == 0) {
+            reporter ! ProgressMessage("Combined total number of evolutionary steps: "+totalCounter)
           }
           this ! UpdateNow(counter)
         }
@@ -321,28 +327,48 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     running = false
     runningThreads = 0
     exitInProgress = false
+    maxFit = 0.0d
+    saveCounter = 1
+    exitCounter = 0
+    totalCounter = 0
   }
+  /*Searches the populations for the most fit network and returns it if such is found
+   * 
+   */
   def getSuperStar : RNND = {
-    //var idx = 4
+    var found = false
+    var idx = 0
+    while (idx < evolvers.size) {
+      val n = evolvers(idx)._1.getBestIfPossible(maxFit)
+      if (n != null) {
+        return n
+      }
+      else {
+        idx += 1
+      }
+    }
+    return null
+    /*
     var best = evolvers(0)._1.getBest
-    var bi = 1
+    var cidx = 1
     var idx = 0
     var f = 0.0
     if (best != null) {
       f = best.getFitness
     }
-    while (bi < evolvers.size) {
-      val candidate = evolvers(bi)._1.getBest
+    while (cidx < evolvers.size) {
+      val candidate = evolvers(cidx)._1.getBest
       if (candidate != null) {
         val f2 = candidate.getFitness
         if (f2 > f) {
           f = f2
-          idx = bi
+          idx = cidx
         }
       }
-      bi += 1
+      cidx += 1
     }
     evolvers(idx)._1.getBest
+    */
   }
   def printInfo(b:Boolean) : Unit = {
     printInfo = b

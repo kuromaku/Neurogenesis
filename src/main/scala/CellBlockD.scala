@@ -192,6 +192,14 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    true
  }
+ def gatherConnections : List[NeuralConnsD] = {
+   var clist = List[NeuralConnsD]()
+   for (i <- 0 until fConns.length) {
+     clist = clist.+:(fConns(i))
+     clist = clist.+:(rConns(i))
+   }
+   clist
+ }
  def makeClone : CellBlockD = {
    val f = new Array[NeuralConnsD](fConns.length)
    val r = new Array[NeuralConnsD](rConns.length)
@@ -210,11 +218,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
      memState(i) = 0
    }
  }
- override def setFitness(f:Double) : Unit = {
-   var c = 0.0
-   for (i <- 0 until fConns.length) {
-     c += fConns(i).calculateComplexity + rConns(i).calculateComplexity
-   }
+ override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
+   var c = measure.calculateComplexity(this.gatherConnections,cBias)
    val fCand = f/c
    if (fCand > fitness) {
      fitness = fCand

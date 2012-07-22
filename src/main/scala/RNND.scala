@@ -200,6 +200,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     */
   }
+  /**Feeds the input data to the network and gathers the resulting inner state vectors into a DenseMatrix object
+   */
   def evolinoFeed(inputData:Traversable[Array[Double]],actFun:Function1[Double,Double]) : DenseMatrix[Double] = {
     val stateSize = out + numBlocks*blockSize
     val dSize = inputData.size
@@ -237,7 +239,6 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   }
   def svmRegression(inputData:Traversable[Array[Double]],targetCols:Array[Array[Double]],actFun:Function1[Double,Double],svmParam:svm_parameter,data2:Traversable[Array[Double]]) : Array[Array[Double]] = {
     val nodes = svmFeed(inputData,actFun)
-    //val probs = new Array[svm_problem](targetCols.length)
     val res = Array.ofDim[Double](data2.size,targetCols.length)
     val nodes2 = svmFeed(data2,actFun)
     for (i <- 0 until targetCols.length) {
@@ -252,6 +253,28 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       }
     }
     res
+  }
+  def getAllSVMResults(inputData:Traversable[Array[Double]],targetCols:Array[Array[Double]],actFun:Function1[Double,Double],svmParam:svm_parameter,data2:Traversable[Array[Double]]) : List[Array[Array[Double]]] = {
+    
+    val nodes = svmFeed(inputData,actFun)
+    val res = Array.ofDim[Double](inputData.size,targetCols.length)
+    val res2 = Array.ofDim[Double](data2.size,targetCols.length)
+    val nodes2 = svmFeed(data2,actFun)
+    for (i <- 0 until targetCols.length) {
+      val prob = new svm_problem
+      prob.l = targetCols(i).length
+      prob.x = nodes
+      prob.y = targetCols(i)
+
+      val svm_model = svm.svm_train(prob,svmParam) //
+      for (j <- 0 until nodes.length) {
+        res(j)(i) = svm.svm_predict(svm_model,nodes(j))
+      }
+      for (j <- 0 until nodes2.length) {
+        res2(j)(i) = svm.svm_predict(svm_model,nodes2(j))
+      }
+    }
+    List(res,res2)
   }
   def linearRegression(inputData:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double]) : DenseMatrix[Double] = {
     
@@ -290,6 +313,34 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       res
       }
   }
+  def getEvolinoResults(inputData:Traversable[Array[Double]],inputData2:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double]) : Array[Array[Double]] = {
+    val M = linearRegression(inputData,targetMatrix,actFun)
+    if (M == null) {
+      //let's return a zero matrix if a problem occurs in calculating the regression matrix
+      Array.ofDim[Double](targetMatrix.numRows,targetMatrix.numCols)
+    }
+    else {
+      this.reset
+      val output0 = evolinoFeed(inputData,actFun)
+      val Y = output0 * M
+      val nr1 = Y.numRows
+      val nr2 = inputData2.size
+      val res = Array.ofDim[Double](nr1+nr2,Y.numCols)
+      for (i <- 0 until nr1) {
+        for (j <- 0 until res(i).length) {
+          res(i)(j) = Y.apply(i,j)
+        }
+      }
+      val output1 = evolinoFeed(inputData2,actFun)
+      val Y2 = output1 * M
+      for (i <- nr1 until (nr1+nr2)) {
+        for (j <- 0 until res(i).length) {
+          res(i)(j) = Y2.apply(i-nr1,j)
+        }
+      }
+      res
+    }
+  }
   def evolinoValidate(in2:Traversable[Array[Double]],out2:Traversable[Array[Double]],actFun:Function1[Double,Double],rMatrix:DenseMatrix[Double]) : Double = {
     var error = 0.0
     val output1 = evolinoFeed(in2,actFun)
@@ -319,21 +370,57 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       ol(i) = outputLayer(i).makeClone
     }
     val cloned = new RNND(il,bl,ol)
-    cloned.setFitness(fitness)
+    cloned.copyFitness(fitness)
     cloned
   }
   /**Sets the fitness value for this network and its each individual cell
    * 
    */
-  override def setFitness(f:Double) : Unit = {
+  override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
+    if (f > 0) {
+      for (i <- 0 until in) {
+        inputLayer(i).setFitness(f,measure,cBias)
+      }
+      for (i <- 0 until numBlocks) {
+        cellBlocks(i).setFitness(f,measure,cBias)
+      }
+      for (i <- 0 until out) {
+        outputLayer(i).setFitness(f,measure,cBias)
+      }
+      val f0 = measure.calculateComplexity(gatherConnections,cBias)
+      if (f0 > 1) {
+        fitness = f/f0
+      }
+      else {
+        fitness = f
+      }
+    }
+    else {
+      //fitness stays 0
+    }
+  }
+  def gatherConnections : List[NeuralConnsD] = {
+    var clist = List[NeuralConnsD]()
     for (i <- 0 until in) {
-      inputLayer(i).setFitness(f)
+      clist = clist ++ inputLayer(i).gatherConnections
     }
     for (i <- 0 until numBlocks) {
-      cellBlocks(i).setFitness(f)
+      clist = clist ++ cellBlocks(i).gatherConnections
     }
     for (i <- 0 until out) {
-      outputLayer(i).setFitness(f)
+      clist = clist ++ outputLayer(i).gatherConnections
+    }
+    clist
+  }
+  override def copyFitness(f:Double) : Unit = {
+    for (i <- 0 until in) {
+      inputLayer(i).copyFitness(f)
+    }
+    for (i <- 0 until numBlocks) {
+      cellBlocks(i).copyFitness(f)
+    }
+    for (i <- 0 until out) {
+      outputLayer(i).copyFitness(f)
     }
     fitness = f
   }
@@ -430,7 +517,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
           if (ws.length > 6) {
             ws = ws.substring(0,6)
           }
-          graph.addEdge(idx+"f"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
+          graph.addEdge("F"+idx+"w"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
         }
       }
@@ -441,7 +528,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
           if (ws.length > 6) {
             ws = ws.substring(0,6)
           }
-          graph.addEdge(idx+"r"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
+          graph.addEdge("R"+idx+"w"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
         }
       }
@@ -455,7 +542,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
             if (ws.length > 6) {
               ws = ws.substring(0,6)
             }
-            graph.addEdge(idx+"f"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
+            graph.addEdge("F"+idx+"w"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
           }
         }
@@ -466,7 +553,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
             if (ws.length > 6) {
               ws = ws.substring(0,6)
             }
-            graph.addEdge(idx+"r"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
+            graph.addEdge("R"+idx+"w"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
           }
         }
@@ -492,7 +579,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
           if (ws.length > 4) {
             ws = ws.substring(0,4)
           }
-          graph.addEdge(idx+"r"+ws,new Pair[Int](midPoint+i,dest),EdgeType.DIRECTED)
+          graph.addEdge("R"+idx+"w"+ws,new Pair[Int](midPoint+i,dest),EdgeType.DIRECTED)
           idx += 1
         }
       }

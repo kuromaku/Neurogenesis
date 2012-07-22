@@ -30,6 +30,7 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	  tmap
 	}
 	def getConns2 : Iterator[(Int,(Double,Boolean))] = conns.toIterator
+	def size : Int = conns.size
 	def setConns(c:Map[Int,(Double,Boolean)]) : Unit = { conns = c }
 	def getMin : Int = minNode
 	def getMax : Int = maxNode
@@ -740,21 +741,11 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	  conns.keySet
 	}
 	def calculateComplexity : Double = {
-	  val size = conns.size
 	  var sum = 0.0
 	  for (c <- conns) {
 	    sum += c._2._1*c._2._1
 	  }
-	  scala.math.log(2+sum)
-	  /*
-	  val mod = scala.math.log(size)
-	  if (mod >= 1) {
-	    sum/mod
-	  }
-	  else {
-	    sum
-	  }
-	  */
+	  sum
 	}
 	def dist(nc2:NeuralConnsD) : Double = {
 	  var d = 0.0

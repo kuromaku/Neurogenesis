@@ -22,8 +22,11 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def getForward : NeuralConnsD = fConns
   def getRecurrent : NeuralConnsD = rConns
   def getActivation : Double = activation
-  override def setFitness(f:Double) : Unit = {
-    val c = fConns.calculateComplexity+rConns.calculateComplexity
+  def gatherConnections : List[NeuralConnsD] = {
+    List(fConns,rConns)
+  }
+  override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
+    val c = measure.calculateComplexity(List(fConns,rConns),cBias)
     if (c != 0) {
       val fCand = f/c
       if (fCand > fitness) {

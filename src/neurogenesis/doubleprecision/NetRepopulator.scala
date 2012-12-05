@@ -1,13 +1,13 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util._
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 
 trait NetRepopulator[T,U] {
-  def repopulate(pop:T,pop2:U,bestNets:Array[RNND],dist:Distribution,schedule:CoolingSchedule,rnd:Random) : Unit
+  def repopulate(pop:T,pop2:U,bestNets:Array[RNND],dist:Distribution,schedule:CoolingSchedule,rnd:MersenneTwisterFast,discardRate:Double=0.75) : Unit
   def permute(l:Int) : Array[Int] = {
     val idx = new Range(0,l,1).toArray
     for (i <- 0.until(l)) {
-      val j = (Math.random*l).toInt
+      val j = (math.random*l).toInt
       val aux = idx(i)
       idx(i) = idx(j)
       idx(j) = aux

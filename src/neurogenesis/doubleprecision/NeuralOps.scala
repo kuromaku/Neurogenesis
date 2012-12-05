@@ -1,4 +1,5 @@
 package neurogenesis.doubleprecision
+
 import scala.xml.Elem
 import scala.xml.Node
 import scalala.tensor.dense.DenseMatrix
@@ -9,7 +10,7 @@ import scalala.library.Plotting
 import scala.swing.TextArea
 import neurogenesis.util.XMLOperator
 
-package object NeuralOps {
+object NeuralOps {
   def fromXML(elem:Elem) : InCellD = {
     val fwd = elem \\ "Forward"
     val rec = elem \\ "Recurrent"
@@ -40,15 +41,41 @@ package object NeuralOps {
     }
     new InCellD(fc,rc)
   }
-  def array2Matrix(a:Array[Array[Double]]) : DenseMatrix[Double] = {
+  def array2Matrix2(a:Array[Array[Double]]) : DenseMatrix[Double] = {
     val mDat = new Array[Double](a.length*a(0).length)
+    val a0l = a(0).length
     for (i <- 0 until a.length) {
-      for (j <- 0 until a(i).length) {
-        mDat(i*a(0).length+j) = a(i)(j)
+      for (j <- 0 until a0l) {
+        mDat(i*a0l+j) = a(i)(j)
       }
     }
-    new DenseMatrix[Double](a.length,a(0).length,mDat)
+    val m0 = new DenseMatrix[Double](a0l,a.length,mDat)
+    m0.t.toDense
   }
+  def array2Matrix(a:Array[Array[Double]]) : DenseMatrix[Double] = {
+    val al = a.length
+    val a0l = a(0).length
+    val md = new Array[Double](al*a0l)
+    val m = new DenseMatrix(al,a0l,md)
+    for (i <- 0 until al) {
+      for (j <- 0 until a0l) {
+        m.update(i,j,a(i)(j))
+      }
+    }
+    m
+  }
+  /*Oops, this was not the correct way to do it
+  def array2Matrix(a:Array[Array[Double]]) : DenseMatrix[Double] = {
+    val mDat = new Array[Double](a.length*a(0).length)
+    val a0l = a(0).length
+    for (i <- 0 until a.length) {
+      for (j <- 0 until a0l) {
+        mDat(i*a0l+j) = a(i)(j)
+      }
+    }
+    new DenseMatrix[Double](a.length,a0l,mDat)
+  }
+  */
   def list2Matrix(l:List[Array[Double]]) : DenseMatrix[Double] = {
     val mDat = new Array[Double](l.size*l.head.length)
     var idx = 0
@@ -58,7 +85,8 @@ package object NeuralOps {
       }
       idx += 1
     }
-    new DenseMatrix[Double](l.size,l.head.length,mDat)
+    val m0 = new DenseMatrix[Double](l.head.length,l.size,mDat)
+    m0.t.toDense
   }
   def matrix2List(m:DenseMatrix[Double]) : List[Array[Double]] = {
     var l = List[Array[Double]]()
@@ -84,7 +112,7 @@ package object NeuralOps {
   def squaredError(a1:Array[Double],a2:Array[Double]) : Double = {
     var error = 0d
     for (i <- 0 until a1.length) {
-      error += Math.sqrt(Math.pow(a2(i)-a1(i),2))
+      error += scala.math.sqrt(scala.math.pow(a2(i)-a1(i),2))
     }
     error = error
     error
@@ -128,6 +156,50 @@ package object NeuralOps {
       rArea.append("Target:\n"+m5.toString+"\n")
     } catch {
       case _ => rArea.append("Could not complete linear regression because of a singular inversion matrix.")
+    }
+  }
+  def plotResults(a:Array[Array[Double]],a2:Array[Array[Double]]) : Unit = {
+    val mtrx = array2Matrix(a)
+    val mtrx2 = array2Matrix(a2)
+    val rows = mtrx.numRows
+    val cols = mtrx.numCols
+    val range = 0 until rows
+    val range2 = 0 until mtrx2.numRows
+    val points = new Array[Int](rows)
+    for (i <- 0 until rows) { points(i) = i}
+    val p = ArrayI.apply(points)
+    for (i <- 0 until cols) {
+      Plotting.subplot(cols,1,i+1)
+      Plotting.plot(p,mtrx2.apply(range,i),'-',"b")
+      
+      Plotting.hold(true)
+      
+      Plotting.plot(p,mtrx.apply(range,i),'-',"r")
+      Plotting.hold(false)
+    }
+  }
+  def plotResults(l:List[Array[Array[Double]]],l2:List[Array[Array[Double]]]) : Unit = {
+    val s = l.size
+    val c = l.apply(0)(0).length
+    val maxPlots = 6
+    
+    for (i <- 0 until s) {
+      val m1 = array2Matrix(l.apply(i))
+      val m2 = array2Matrix(l2.apply(i))
+      val rows = m1.numRows
+      val cols = if (m1.numCols > maxPlots) maxPlots else m1.numCols
+      val range = 0 until rows
+      val range2 = 0 until m2.numRows
+      val points = new Array[Int](rows)
+      for (j <- 0 until rows) { points(j) = j }
+      val p = ArrayI.apply(points)
+      for (j <- 0 until cols) {
+        Plotting.subplot(cols*s,1,(i*c)+j+1)
+        Plotting.plot(p,m2.apply(range,j),'-',"b")
+        Plotting.hold(true)
+        Plotting.plot(p,m1.apply(range,j),'-',"r")
+        Plotting.hold(false)
+      }
     }
   }
 }

@@ -1,11 +1,14 @@
 package neurogenesis.doubleprecision
 import scala.util.Random
+import neurogenesis.util.CComplexityMeasure
+
 trait EvolvableD {
   //type T
   var fitness:Double = 0
   
   def getFitness : Double = fitness
-  def setFitness(f:Double) : Unit = { fitness = f }
+  def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = { fitness = f }
+  def copyFitness(f:Double) : Unit = { fitness = f }
   def makeClone : EvolvableD
   
   def sort[T <: EvolvableD](a:Array[T]) : Array[T] = {

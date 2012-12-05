@@ -1,12 +1,16 @@
 package neurogenesis.util
-import neurogenesis.msg._
+import neurogenesis.msg.AnotherRNN
 
 import scala.actors.Actor
 import edu.uci.ics.jung.algorithms.layout.FRLayout
 import edu.uci.ics.jung.algorithms.layout.KKLayout
 import edu.uci.ics.jung.algorithms.layout.ISOMLayout
 import edu.uci.ics.jung.visualization.VisualizationImageServer
-import edu.uci.ics.jung.visualization.BasicVisualizationServer
+import edu.uci.ics.jung.visualization.VisualizationViewer
+import edu.uci.ics.jung.visualization.control.DefaultModalGraphMouse
+import edu.uci.ics.jung.visualization.control.ModalGraphMouse
+import edu.uci.ics.jung.visualization.control.ModalGraphMouse.Mode
+//import edu.uci.ics.jung.visualization.BasicVisualizationServer
 import edu.uci.ics.jung.visualization.decorators.ToStringLabeller
 import edu.uci.ics.jung.visualization.renderers.Renderer.VertexLabel.Position
 import java.awt.Image
@@ -30,19 +34,22 @@ class GraphWorker(method:String) extends Actor {
         case AnotherRNN(rnn) => {
           val graphRep = rnn.toGraph
           val img = graph2Img(graphRep)
-    
-          val displayWindow = new JFrame("Sketch of the best network found using layout: "+layoutMethod)
-          //displayWindow.se
-          displayWindow.setPreferredSize(new Dimension(640,480))
+          
+          val displayWindow = new JFrame("Sketch of a network found using layout: "+layoutMethod+" (fitness: "+rnn.getFitnessString+")")
+          //
+          displayWindow.setPreferredSize(new Dimension(800,600))
           /*
           val displayPanel = new DisplayPanel(img)
           displayPanel.setBorder(new EtchedBorder)
           displayPanel.setPreferredSize(new Dimension(640,480))
           */
-          val vServer = new BasicVisualizationServer[Int,String](graph2Layout(graphRep))
+          val vServer = new VisualizationViewer[Int,String](graph2Layout(graphRep,rnn.getSizes))
           vServer.getRenderContext.setVertexLabelTransformer(new ToStringLabeller)
           vServer.getRenderContext.setEdgeLabelTransformer(new ToStringLabeller)
           vServer.getRenderer.getVertexLabelRenderer.setPosition(Position.CNTR)
+          val defMouse = new DefaultModalGraphMouse
+          defMouse.setMode(ModalGraphMouse.Mode.TRANSFORMING)
+          vServer.setGraphMouse(defMouse)
           displayWindow.setContentPane(vServer)//displayPanel)
           displayWindow.pack()
           displayWindow.setVisible(true)
@@ -51,9 +58,9 @@ class GraphWorker(method:String) extends Actor {
     }
   }
   def graph2Img(g:SparseGraph[Int,String]) : Image = {
-    val fGraph = new SparseGraph[Int,String]()
+    //val fGraph = new SparseGraph[Int,String]()
     
-    var lOut:AbstractLayout[Int,String] = new FRLayout(fGraph)
+    var lOut:AbstractLayout[Int,String] = null
     layoutMethod match {
       case "FR" => {
         lOut = new FRLayout(g)
@@ -67,18 +74,22 @@ class GraphWorker(method:String) extends Actor {
       case "Spring" => {
         lOut = new SpringLayout(g)
       }
-      case _ => lOut = new FRLayout(g)
+      case _ => lOut = new FRLayout(g)// RNNLayout(g,)
     }
     
     lOut.initialize()
     val imgServer = new VisualizationImageServer(lOut,new Dimension(640,480))
     imgServer.getImage(new Point(400,300),new Dimension(800,600))
   }
-  def graph2Layout(g:SparseGraph[Int,String]) : AbstractLayout[Int,String] = {
-    val fGraph = new SparseGraph[Int,String]()
+  def graph2Layout(g:SparseGraph[Int,String],size:Array[Int]) : AbstractLayout[Int,String] = {
+    //val fGraph = new SparseGraph[Int,String]()
     
-    var lOut:AbstractLayout[Int,String] = new FRLayout(fGraph)
+    var lOut:AbstractLayout[Int,String] = null//new FRLayout(fGraph)
     layoutMethod match {
+      case "RNN" => {
+        val lo = new RNNLayout(g,size(0),size(1),size(2),size(3))
+        lOut = lo.getLayout(800,600)
+      }
       case "FR" => {
         lOut = new FRLayout(g)
       }
@@ -91,7 +102,10 @@ class GraphWorker(method:String) extends Actor {
       case "Spring" => {
         lOut = new SpringLayout(g)
       }
-      case _ => lOut = new FRLayout(g)
+      case _ => {
+        val lo = new RNNLayout(g,size(0),size(1),size(2),size(3))
+        lOut = lo.getLayout(800,600)
+      }
     }
     lOut.initialize()
     lOut

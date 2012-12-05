@@ -1,15 +1,17 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util._
-import scala.util.Random
+import scalala.library.random.MersenneTwisterFast
 
 class SimpleNetRepopulator extends NetRepopulator[NetPopulationD,CellPopulationD] {
   type T = NetPopulationD
   type U = CellPopulationD
-  def repopulate(pop:T,pop2:U,bestNets:Array[RNND],dist:Distribution,schedule:CoolingSchedule,rnd:Random) : Unit = {
+  def repopulate(pop:T,pop2:U,bestNets:Array[RNND],dist:Distribution,schedule:CoolingSchedule,rnd:MersenneTwisterFast,discardRate:Double=0.75) : Unit = {
     val mutP = schedule.getProb1
     val flipP = schedule.getProb2
+    val l = pop2.getSize
+    val combines = new Array[RNND](l)
     if (!bestReady(bestNets)) {
-      val l = pop2.getSize
+      
       val inPerms = permutations(l,pop2.getIn)
       val blockPerms = permutations(l,pop2.getBlocks)
       val outPerms = permutations(l,pop2.getOut)
@@ -18,17 +20,18 @@ class SimpleNetRepopulator extends NetRepopulator[NetPopulationD,CellPopulationD
         pop.netPop(i) = n(i)
       }
       for (i <- l until pop.getSize) {
-        val idx1 = rnd.nextInt(l)
-        var idx2 = rnd.nextInt(l)
+        //Remember to change this if you ever change the number of networks in NetPopulation compared to the size of CP subpopulations
+        val idx1 = rnd.nextInt(l)+l
+        var idx2 = rnd.nextInt(l)+l
         var count = 0
         while (idx2 == idx1 && count < 7) {
-          idx2 = rnd.nextInt(l)
+          idx2 = rnd.nextInt(l)+l
         }
         if (count == 7) {
-          pop.netPop(i) = pop.netPop(i).burstMutate(mutP,dist,rnd)
+          combines(i-l) = pop.netPop(i).burstMutate(mutP,dist,rnd)
         }
         else {
-          pop.netPop(i) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP)
+          combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate)
         }
       }
       pop.setSorted(false)
@@ -44,24 +47,27 @@ class SimpleNetRepopulator extends NetRepopulator[NetPopulationD,CellPopulationD
       }
       for (i <- l until pop.getSize) {
         if (rnd.nextDouble < 0.5) {
-          val idx1 = rnd.nextInt(l)
-          var idx2 = rnd.nextInt(l)
+          val idx1 = rnd.nextInt(l)+l
+          var idx2 = rnd.nextInt(l)+l
           var count = 0
           while (idx2 == idx1 && count < 7) {
-            idx2 = rnd.nextInt(l)
+            idx2 = rnd.nextInt(l)+l
           }
           if (count == 7) {
-            pop.netPop(i) = pop.netPop(i).burstMutate(mutP,dist,rnd)
+            combines(i-l) = pop.netPop(i).burstMutate(mutP,dist,rnd)
           }
           else {
-            pop.netPop(i) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP)
+            combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate)
           }
         }
         else {
-          val idx1 = rnd.nextInt(l)
+          val idx1 = rnd.nextInt(l)+l
           val idx2 = rnd.nextInt(bestNets.length)
-          pop.netPop(i) = pop.netPop(idx1).combine(bestNets(idx2),dist,mutP,flipP)
+          combines(i-l) = pop.netPop(idx1).combine(bestNets(idx2),dist,mutP,flipP,rnd,discardRate)
         }
+      }
+      for (i <- 0 until combines.length) {
+        pop.netPop(l+i) = combines(i)
       }
       pop.setSorted(false)
     }

@@ -1,29 +1,46 @@
 package neurogenesis.doubleprecision
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
-import scala.util.Random
+import neurogenesis.util.CComplexityMeasure
+import scalala.library.random.MersenneTwisterFast
 import scala.xml._
 
+/*A simple input cell which can have both forward and recurrent connections
+ * 
+ */
 class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   var stim = 0d
   var activation = 0d
   def activate(actFun: Function1[Double,Double]) : Double = {activation = actFun(stim); activation }
-  def addRandomConnections(num:Int,rnd:Random) : Int = {
+  def addRandomConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
     fConns.addRandomConnections(num,rnd)
   }
-  def burstMutate(prob:Double,dist:Distribution,rnd:Random) : InCellD = {
+  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : InCellD = {
     val fc = fConns.burstMutate(prob,dist,rnd)
     var rc = rConns.burstMutate(prob,dist,rnd)
     new InCellD(fc,rc)
   }
+  def equals(other:InCellD) : Boolean = {
+    (fConns == other.getForward && rConns == other.getRecurrent)
+  }
   def getForward : NeuralConnsD = fConns
   def getRecurrent : NeuralConnsD = rConns
   def getActivation : Double = activation
-  override def setFitness(f:Double) : Unit = {
-    val c = fConns.calculateComplexity+rConns.calculateComplexity
-    val fCand = f/c
-    if (fCand > fitness) {
-      fitness = fCand
+  def gatherConnections : List[NeuralConnsD] = {
+    List(fConns,rConns)
+  }
+  override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
+    val c = measure.calculateComplexity(List(fConns,rConns),cBias)
+    if (c != 0) {
+      val fCand = f/c
+      if (fCand > fitness) {
+        fitness = fCand
+      }
+    }
+    else {
+      if (f > fitness) {
+        fitness = f
+      }
     }
   }
   def stimulate(s:Double) : Unit = { stim += s }
@@ -34,14 +51,19 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP)
     new InCellD(f,r)
   }
-  def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:Random) : InCellD = {
+  def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : InCellD = {
     //val cops = implicitly[InCellD]
-    val f = fConns.combine(e2.getForward,dist,mutP,flipP,rnd)
-    val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP,rnd)
+    val f = fConns.combine(e2.getForward,dist,mutP,flipP,rnd,discardRate)
+    val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
     new InCellD(f,r)
   }
-  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:Random) : InCellD = {
+  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : InCellD = {
     new InCellD(fConns.complexify(in,blocks,memCells,out,addBlock,rnd),rConns.complexify(in,blocks,memCells,out,addBlock,rnd))
+  }
+  def distance(cell2:InCellD) : Double = {
+    val d1 = fConns.dist(cell2.getForward)
+    val d2 = rConns.dist(cell2.getRecurrent)
+    d1+d2
   }
   def makeClone : InCellD = {
     val fw = getForward
@@ -54,7 +76,11 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     val e = <InCellD>{fwd}{rec}</InCellD>
     e
   }
+
   
+  override def toString : String = "<InCellD><Forward>"+fConns+"</Forward><Recurrent>\n"+rConns+"</Recurrent></InCellD>"
+}
+object InCellD {
   def fromXML(elem:Elem) : InCellD = {
     val fwd = elem \\ "Forward"
     val rec = elem \\ "Recurrent"
@@ -70,6 +96,10 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     }
     new InCellD(fc,rc)
   }
-  
-  override def toString : String = "<InCellD><Forward>"+fConns+"</Forward><Recurrent>\n"+rConns+"</Recurrent></InCellD>"
+  def fromXML(ns:NodeSeq) : InCellD = {
+    val fwd = ns \\ "Forward"
+    val fc = NeuralConnsD.fromXML(fwd)
+    val rc = NeuralConnsD.fromXML(ns \\ "Recurrent")
+    new InCellD(fc,rc)
+  }
 }

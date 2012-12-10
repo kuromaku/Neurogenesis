@@ -89,10 +89,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   def initMatrix : Unit = {
     matrix = NeuralOps.list2Matrix(dataSets.apply(1).drop(washoutTime)) //.drop(washoutTime)
   }
+  var initialized = false
+  def setMatrix(m2:DenseMatrix[Double]) : Unit = { matrix = m2; initialized = true }
   def act : Unit = {
-    if (learningMode == 2) {
+    if (!initialized && learningMode == 2 || learningMode == 4) {
       //Evolino requires an initialized data matrix
       initMatrix
+      initialized = true
     }
     if (dataSets.apply(0).size < minFeedLength) {
       partialDataFeed = false
@@ -103,7 +106,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           updatingNow = true
           //println("Evo"+myId+" Step: "+schedule.getCurrent)
           //TODO: Verify logic
-          val (d0,d1,d2,d3) = sliceData //slices datasets if only using partial data
+          val (d0,d1,d2,d3) = sliceData2 //slices datasets if only using partial data
           if (partialDataFeed && learningMode == 2) {
             matrix = NeuralOps.list2Matrix(d1)
             /*
@@ -118,7 +121,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           for (i <- 0 until netPopulation.getSize) {
             val rnn = netPopulation.getRNN(i)
 
-            if (learningMode < 2 || learningMode == 4) {
+            if (learningMode < 2) {
               val res = rnn.feedData(d0,actFun).drop(washoutTime)
               
               var mse = totalError(d1.drop(washoutTime),res)
@@ -132,7 +135,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               }
               rnn.setFitness(fn,cMeasure,complexityBias)
             }
-            else if (learningMode == 2) { //Evolino
+            else if (learningMode == 2 || learningMode == 4) { //Evolino plus first step of svmlite-mode
               val rM = rnn.linearRegression(d0,matrix,actFun,washoutTime) //NeuralOps.list2Matrix(dataSets.apply(1))
               if (rM != null) {
                 val err = rnn.evolinoValidate(d2,d3,actFun,rM)
@@ -172,16 +175,20 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           if (learningMode == 4) { //let's only use the best network for svm regression
             val rnn = netPopulation.getRNN(netPopulation.getSize-1)
             rnn.reset
+            val f0 = rnn.getFitnessString //fitness using linear regression
             val res = rnn.svmRegression(d0,svmCols,actFun,svmPar,d2,washoutTime)
             val err = totalError(d3,res)
             
             if (!err.isNaN && err > 0) {
               val svmF = 1.0/err
-              var fs = svmF.toString
+              rnn.setFitness(svmF,cMeasure,complexityBias)
+              var fs = rnn.getFitness.toString //fitness using svm regression
               if (fs.length > 7) {
                 fs = fs.substring(0,7)
               }
-              if (svmF > rnn.getFitness) { reporter ! ProgressMessage("SVM fitness: "+fs+" while without regression it is: "+rnn.getFitnessString) }
+              if (svmF > rnn.getFitness) { 
+                rnn.setFitness(svmF,cMeasure,complexityBias)
+                reporter ! ProgressMessage("SVM fitness: "+fs+" while with linear regression it is: "+f0) }
                //rnn.setFitness(100.0/err)
             }
             else {
@@ -336,21 +343,30 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
 
   }
   def addDLists(dat:List[List[Array[Double]]]) : Unit = { dataSets = dataSets ++ dat }
+  
+  /*Sets the major evolutionary parameters of a newly spawned NeuralEvolver to the values of
+   * its parent
+   */
   def configure(e:NeuralEvolver) : Unit = {
-    e.addDLists(dataSets)
+    e.setDLists(dataSets)
     e.setActFun(actFun)
+    e.setComplexityMeasure(cMeasure)
     e.setSavePath(savePath)
     e.setSpawningFreq(spawningFreq)
     e.setRepopulator(cellRepopulator)
     e.setNetRepopulator(netRepopulator)
     e.setSchedule(schedule.makeClone)
     e.setEvoMode(learningMode)
+    //e.setWashoutTime(washoutTime)
     e.setMaximumSize(maxCells,maxBlocks) //system resource demands grow rather fast especially if SVMBoost is used with network size
     if (learningMode >= 3) {
+      e.setMatrix(matrix)
       e.initSVMLearner(svmCols,epsilonRegression)//svmNodes,
     }
     e.setSaveFreq(saveFreq)
   }
+  def setDLists(dlists:List[List[Array[Double]]]) : Unit = { dataSets = dlists }
+  
   def sliceData : (List[Array[Double]],List[Array[Double]],List[Array[Double]],List[Array[Double]]) = {
     val (d0,d0b) = if (partialDataFeed) { 
           dataSets.apply(0).splitAt(schedule.getFeedLength(0)) } 
@@ -401,10 +417,11 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       val (b0,b1) = dataSets.apply(1).splitAt(schedule.getFeedLength(1))
       val a1l = a1.length
       val c2l = schedule.getFeedLength(2)
+      
       val c0 = if (c2l > a1l) {
         a1 ++ dataSets.apply(2).slice(0,c2l-a1l)
-      }
-      else { a1.slice(0,c2l) }
+      } else { a1.slice(0,c2l) }
+      
       val d0 = if (learningMode >= 2) {
         val b1l = b1.length
         val d3l = schedule.getFeedLength(3)
@@ -416,6 +433,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
         }
       }
       else { null }
+      
       (a0,b0.drop(washoutTime),c0,d0)
     }
   }
@@ -539,7 +557,6 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   }
   def initSVMLearner(tCols:Array[Array[Double]],epsilonR:Boolean) : Unit = {
     initParam(epsilonR)
-    //svmNodes = nodes, nodes:Array[Array[svm_node]],
     svmCols = tCols
   }
   def mixPopulations(evolver2:NeuralEvolver,mixProb:Double) : Unit = {
@@ -634,6 +651,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
    */
   def saveEvolver(f:File) : Unit = {
     if (useCompression) {
+      /*XML representations tend to consume too much space without compression*/
       val f2 = new File(f.getPath+".zip")
       val xmls = toXML.toString.getBytes
       val compressor = new DeflaterOutputStream(new FileOutputStream(f2))

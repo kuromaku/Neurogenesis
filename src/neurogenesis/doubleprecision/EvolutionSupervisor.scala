@@ -127,7 +127,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             
           }
           processData
-          if (mixingFreq > 1) {
+          if (mixingFreq > 10) {//will not allow absurdly frequent mixing
             if (mixingStep % mixingFreq == 0) {
               val numMixed = mixPopulations(mixingProb)
               reporter ! ProgressMessage("Mixed "+numMixed+" populations")
@@ -234,8 +234,8 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
         arr(k+s) = (evo,0)
         evo.setComplexityMeasure(cmeasure)
         evo.setPrintInfo(printInfo)
-        evo.start
         evo.setWashoutTime(washoutTime)
+        evo.start
         maxID += 1
         s += 1
       }
@@ -280,6 +280,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   def getReporter : ProgressReporter = reporter
   def getNumberOfEvolvers = numEvolvers
   def mixPopulations(mixProb:Double) : Int = {
+    //TODO: Make this threadsafe
     var numMixed = 0
     for (i <- 0 until (evolvers.length-1)) {
       val memPar = evolvers(i)._1.getMemorySize

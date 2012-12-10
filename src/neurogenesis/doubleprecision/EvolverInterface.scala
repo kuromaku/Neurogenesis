@@ -49,7 +49,7 @@ class EvolverInterface extends SimpleSwingApplication {
   var numThreads = 4
   var supervisor = new EvolutionSupervisor(reportArea,fitnessLabel,numThreads)
   var evolvers = List[NeuralEvolver]()
-  var restoredRNNs = List[RNND]()
+  var restoredRNNs = List[RNND]() //the program can load previously save networks into this variable
   //var evolvers2 = List[NeuralEvolver[Float]]()
   val rnd = new MersenneTwisterFast(System.currentTimeMillis())//new Random
   var printInfo = false
@@ -422,6 +422,7 @@ class EvolverInterface extends SimpleSwingApplication {
         }
       }
     }
+    action_=(washoutAction)
   }
   //var cmeasure:CComplexityMeasure = new Constant(1d)
   //object cmeasureSelector extends ComboBox(Seq[String]("Constant","Variable"))
@@ -1229,12 +1230,14 @@ class EvolverInterface extends SimpleSwingApplication {
 	    dworker.initSVM
 	    
 	    val bestRNN = supervisor.getSuperStar
-	    bestRNN.reset
-	    val svmParam = getSVMParameter(bestRNN)
-        val svmCols = dworker.getCols(0)
-        val results = bestRNN.svmRegression(dworker.getData(0),svmCols,actFun,svmParam,dworker.getData(2))
-        val q = dworker.getData(3).toArray
-        NeuralOps.plotResults(results,q)
+	    if (bestRNN != null) {
+	      bestRNN.reset
+	      val svmParam = getSVMParameter(bestRNN)
+          val svmCols = dworker.getCols(0)
+          val results = bestRNN.svmRegression(dworker.getData(0),svmCols,actFun,svmParam,dworker.getData(2))
+          val q = dworker.getData(3).toArray
+          NeuralOps.plotResults(results,q)
+	    }
         
 	  }
 	  case ValueChanged(`popSizeSlider`) => {
@@ -1300,8 +1303,12 @@ class EvolverInterface extends SimpleSwingApplication {
 	  }
 	  case ButtonClicked(`writeAllTheBestNets`) => {
 	    val bunch = supervisor.gatherBest
-	    if (writeAllRNNs(bunch)) {
-	      reportArea.append("Wrote the networks.\n")
+	    var sortedBunch = bunch.sortWith(_.getFitness < _.getFitness)
+	    if (sortedBunch.size > 25) {
+	      sortedBunch = sortedBunch.drop(sortedBunch.size-25)
+	    }
+	    if (writeAllRNNs(sortedBunch)) {
+	      reportArea.append("Wrote "+sortedBunch.size+" of the best networks.\n")
 	    }
 	    else {
 	      reportArea.append("Did not write the networks because a previous save existed with the same name.\n")
@@ -1649,7 +1656,9 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def writeAllRNNs(lRNN:List[RNND]) : Boolean = {
-    val f = new File(saveDirectory+fsep+"allthebest.xml.zip")
+    val systime = System.currentTimeMillis.toString
+    
+    val f = new File(saveDirectory+fsep+"allthebest"+systime.substring(0,systime.length-3)+".xml.zip")
     if (!f.exists) {
       val fout = new FileOutputStream(f)
       val compressor = new DeflaterOutputStream(fout)

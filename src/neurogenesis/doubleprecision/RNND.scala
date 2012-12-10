@@ -267,7 +267,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val X = evolinoFeed(inputData,actFun,washout)
     val Xt = X.t
     val X2 = Xt * X
-    try { 
+    try {
       val XXinv = LinearAlgebra.pinv(X2.toDense)
       val X3 = Xt * targetMatrix
       val X4 = XXinv * X3
@@ -279,7 +279,6 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         //new DenseMatrix(il,targetMatrix.numCols,new Array[Double](il*targetMatrix.numCols))
       }
     }
-
   }
   def linearPredict(inputData:Traversable[Array[Double]],inputData2:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double],washout:Int=100) : Array[Array[Double]] = {
     val M = linearRegression(inputData,targetMatrix,actFun,washout)

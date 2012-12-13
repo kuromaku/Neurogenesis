@@ -118,13 +118,14 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             }
             */
           }
+          val d1washout = d1.drop(washoutTime)
           for (i <- 0 until netPopulation.getSize) {
             val rnn = netPopulation.getRNN(i)
 
             if (learningMode < 2) {
               val res = rnn.feedData(d0,actFun).drop(washoutTime)
               
-              var mse = totalError(d1.drop(washoutTime),res)
+              var mse = totalError(d1washout,res)
               val closeToConstant = calculateVariability(res)
               var fn = 1.0/mse
               if (fn.isNaN()) {
@@ -157,7 +158,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               val res = rnn.svmRegression(d0,svmCols,actFun,svmPar,d2,washoutTime)
               val err = totalError(d3,res)
               val closeToConstant = calculateVariability(res)
-              if (closeToConstant < 0.05 || closeToConstant.isNaN) {
+              if (closeToConstant.isNaN || closeToConstant < 0.05) {
                 rnn.setFitness(0,cMeasure,complexityBias)
               }
               else {

@@ -1476,7 +1476,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
     else if (evolutionMode == 2 && idx >= 3) {
       if (idx == 3) {
-        val res2 = rnn.linearPredict(dworker.getData(0),dworker.getData(2),NeuralOps.list2Matrix(dworker.getData(1)),actFun)
+        val res2 = rnn.linearPredict(dworker.getData(0),dworker.getData(2),NeuralOps.list2Matrix(dworker.getData(1).drop(washoutTime)),actFun,washoutTime)
         append2Area(res2)
         res = res.:+(res2)
       }
@@ -1495,7 +1495,7 @@ class EvolverInterface extends SimpleSwingApplication {
         res = res.:+(res2)
       }
     }
-    else if (evolutionMode == 3 && idx >= 3) {
+    else if ((evolutionMode == 3 || evolutionMode == 4) && idx >= 3) {
       dworker.initSVM
       val p = getSVMParameter(rnn)
       val data2 = if (idx < 5) dworker.getData(2) else dworker.getData(2) ++ dworker.getData(4)

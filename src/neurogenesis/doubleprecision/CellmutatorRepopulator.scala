@@ -9,7 +9,7 @@ import neurogenesis.util.CoolingSchedule
  */
 class CellmutatorRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] {
 
-  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: MersenneTwisterFast, discardRate: Double) : Unit = {
+  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: MersenneTwisterFast, discardRate: Double) : CellPopulationD = {
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
     val popSize = pop.getSize
@@ -45,8 +45,9 @@ class CellmutatorRepopulator(deathRate:Double) extends Repopulator[CellPopulatio
       }
       outputPop(i) = nextGen
     }
-    //val neoPop = new CellPopulationD(inputs,blocks,outputs,popSize)
-    //pop.replaceCells(inputPop,blockPop,outputPop)
+    val neoPop = new CellPopulationD(inputs,blocks,outputs,popSize)
+    neoPop.replaceCells(inputPop,blockPop,outputPop)
+    neoPop
   }
   override def toString : String = "MutatorRepopulator"
 

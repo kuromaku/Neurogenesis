@@ -155,6 +155,21 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     new RNND(il,bl,ol)
   }
+  def combine(net2:RNND,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double,cellpop:CellPopulationD) : RNND = {
+    val il = new Array[InCellD](in)
+    val bl = new Array[CellBlockD](numBlocks)
+    val ol = new Array[OutCellD](out)
+    for (i <- 0 until in) {
+      il(i) = inputLayer(i).combine(net2.getIn(i),dist,mutP,flipP,rnd,discardRate,cellpop)
+    }
+    for (i <- 0 until numBlocks) {
+      bl(i) = cellBlocks(i).combine(net2.getMid(i),dist,mutP,flipP,rnd,discardRate,cellpop)
+    }
+    for (i <- 0 until out) {
+      ol(i) = outputLayer(i).combine(net2.getOut(i),dist,mutP,flipP,rnd,discardRate,cellpop)
+    }
+    new RNND(il,bl,ol)
+  }
   def distance(net2:RNND) : Double = {
     var di = 0.0
     for (i <- 0 until in) {
@@ -319,12 +334,15 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val ol = new Array[OutCellD](out)
     for (i <- 0 until in) {
       il(i) = inputLayer(i).makeClone
+      il(i).setID(inputLayer(i).getID)
     }
     for (i <- 0 until numBlocks) {
       bl(i) = cellBlocks(i).makeClone
+      bl(i).setID(cellBlocks(i).getID)
     }
     for (i <- 0 until out) {
       ol(i) = outputLayer(i).makeClone
+      ol(i).setID(outputLayer(i).getID)
     }
     val cloned = new RNND(il,bl,ol)
     cloned.copyFitness(fitness)
@@ -422,8 +440,14 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
 
   def reset : Unit = {
     //firstInput = true
+    for (incell <- inputLayer) {
+      incell.reset
+    }
     for (b <- cellBlocks) {
       b.reset
+    }
+    for (outcell <- outputLayer) {
+      outcell.reset
     }
   }
   override def toString : String = {
@@ -567,6 +591,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     r
   }
+  def getStateLength : Int = { out+numBlocks*blockSize }
   def getSizes : Array[Int] = {
     val a = new Array[Int](4)
     a(0) = in; a(1) = numBlocks; a(2) = synapses - 3; a(3) = out

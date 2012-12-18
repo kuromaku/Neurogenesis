@@ -20,6 +20,14 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     var rc = rConns.burstMutate(prob,dist,rnd)
     new InCellD(fc,rc)
   }
+  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast,cpop:CellPopulationD) : InCellD = {
+    val fc = fConns.burstMutate(prob,dist,rnd)
+    var rc = rConns.burstMutate(prob,dist,rnd)
+    val out2 = new InCellD(fc,rc)
+    out2.setID(cpop.getCounter)
+    cpop.add2Counter
+    out2
+  }
   def equals(other:InCellD) : Boolean = {
     (fConns == other.getForward && rConns == other.getRecurrent)
   }
@@ -43,6 +51,7 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
       }
     }
   }
+  def reset : Unit = { stim = 0; activation = 0 }
   def stimulate(s:Double) : Unit = { stim += s }
   
   def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double) : InCellD = {
@@ -57,6 +66,15 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
     val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
     new InCellD(f,r)
   }
+  def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double,cellpop:CellPopulationD) : InCellD = {
+    //val cops = implicitly[InCellD]
+    val f = fConns.combine(e2.getForward,dist,mutP,flipP,rnd,discardRate)
+    val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
+    val cell2 = new InCellD(f,r)
+    cell2.setID(cellpop.getCounter)
+    cellpop.add2Counter
+    cell2
+  }
   def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : InCellD = {
     new InCellD(fConns.complexify(in,blocks,memCells,out,addBlock,rnd),rConns.complexify(in,blocks,memCells,out,addBlock,rnd))
   }
@@ -68,7 +86,9 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def makeClone : InCellD = {
     val fw = getForward
     val rc = getRecurrent
-    new InCellD(fw.makeClone,rc.makeClone)
+    val nc = new InCellD(fw.makeClone,rc.makeClone)
+    nc.setID(getID)
+    nc
   }
   def toXML : Elem = {
     val fwd = <Forward>{fConns.toXML}</Forward>

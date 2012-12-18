@@ -49,7 +49,7 @@ class EvolverInterface extends SimpleSwingApplication {
   var numThreads = 4
   var supervisor = new EvolutionSupervisor(reportArea,fitnessLabel,numThreads)
   var evolvers = List[NeuralEvolver]()
-  var restoredRNNs = List[RNND]() //the program can load previously save networks into this variable
+  var restoredRNNs = List[RNND]() //the program can load previously saved networks into this variable
   //var evolvers2 = List[NeuralEvolver[Float]]()
   val rnd = new MersenneTwisterFast(System.currentTimeMillis())//new Random
   var printInfo = false
@@ -244,7 +244,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
     action_=(mixingProbAction)
   }
-  var discardRate = 0.5
+  var discardRate = 0.75
   object discardRateField extends TextField(discardRate.toString) {
     object rateAction extends Action("") {
       def apply : Unit = {
@@ -812,17 +812,17 @@ class EvolverInterface extends SimpleSwingApplication {
     val allPops = new Array[CellPopulationD](numThreads)
     val allNets = new Array[NetPopulationD](numThreads)
     val allEvolvers = new Array[NeuralEvolver](numThreads)
-    //val rnd = new Random
+    
     initSupervisor
-    //supervisor.setThreads(numThreads)
+    
     val scheduleRep = scheduleChooser.selection.item
     var schedule:CoolingSchedule = new SimpleSchedule(mutProb,flipProb,maxSteps)
     var populator1:Repopulator[CellPopulationD] = new BasicRepopulator
     var populator2:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
     val populatorRep = repopulatorSelector.selection.item
     populatorRep match {
-        case "ComplexRP" => populator1 = new ComplexRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
-        case "RandRP" => populator1 = new RandCellRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
+        case "ComplexRP" => populator1 = new ComplexRepopulator(discardRate); populator2 = new VariableNetRepopulator(1)
+        case "RandRP" => populator1 = new RandCellRepopulator(discardRate); populator2 = new VariableNetRepopulator(1)
         case _ => Unit
     }
     scheduleRep match {
@@ -872,14 +872,6 @@ class EvolverInterface extends SimpleSwingApplication {
       allEvolvers(i).setSavePath(saveDirectory)
       allEvolvers(i).setSaveFreq(autoSave)
       
-      /*
-      if (evolutionMode == 2) {
-        allEvolvers(i).addData2(dworker.getAsList(2),dworker.getAsList(3))
-      }
-      */
-      //allEvolvers(i).setMutationProb(mutProb)
-      //allEvolvers(i).setFlipProb(flipProb)
-      //reportArea.append(allEvolvers(i).getSimpleRepresentation+"\n")
       allEvolvers(i).start
       supervisor.addEvolver(i,allEvolvers(i))
     }
@@ -905,9 +897,9 @@ class EvolverInterface extends SimpleSwingApplication {
     var populator2:NetRepopulator[NetPopulationD,CellPopulationD] = new SimpleNetRepopulator
     val populatorRep = repopulatorSelector.selection.item
     populatorRep match {
-      case "ComplexRP" => populator1 = new ComplexRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
-      case "RandRP" => populator1 = new RandCellRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
-      case "MutatorRP" => populator1 = new CellmutatorRepopulator(0.75); populator2 = new VariableNetRepopulator(0.8)
+      case "ComplexRP" => populator1 = new ComplexRepopulator(discardRate); populator2 = new VariableNetRepopulator(1)
+      case "RandRP" => populator1 = new RandCellRepopulator(discardRate); populator2 = new VariableNetRepopulator(1)
+      case "MutatorRP" => populator1 = new CellmutatorRepopulator(discardRate); populator2 = new VariableNetRepopulator(1)
       case _ => Unit
     }
     scheduleRep match {
@@ -1810,7 +1802,7 @@ class EvolverInterface extends SimpleSwingApplication {
     svmParam.svm_type = svm_parameter.EPSILON_SVR
     svmParam.kernel_type = svm_parameter.RBF
     svmParam.degree = 3
-    svmParam.gamma = 1.0/(rnn.getMid(0).getNumOfCells+rnn.out)
+    svmParam.gamma = 1.0/rnn.getStateLength
     svmParam.coef0 = 0
     svmParam.nu = 0.5
     svmParam.cache_size = 100

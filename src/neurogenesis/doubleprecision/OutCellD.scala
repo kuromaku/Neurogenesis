@@ -19,11 +19,19 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
     val nr = rConns.burstMutate(prob,dist,rnd) //new NeuralConns(rConns.getMin,rConns.getMax)
     new OutCellD(bias,nr)
   }
+  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast,cpop:CellPopulationD) : OutCellD = {
+    val nr = rConns.burstMutate(prob,dist,rnd) //new NeuralConns(rConns.getMin,rConns.getMax)
+    val out2 = new OutCellD(bias,nr)
+    out2.setID(cpop.getCounter)
+    cpop.add2Counter
+    out2
+  }
   def getRecurrent : NeuralConnsD = rConns
   def getActivation : Double = activation
   def getBias : Double = bias
   //def setFitness(f:Double) : Unit = { fitness = f }
   def stimulate(s:Double) : Unit = { stim += s }
+  def reset : Unit = { stim = 0; activation = 0 }
   def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double) : OutCellD = {
     val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP)
     new OutCellD(bias,r)
@@ -31,6 +39,13 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : OutCellD = {
     val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
     new OutCellD(bias,r)
+  }
+  def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double,cellpop:CellPopulationD) : OutCellD = {
+    val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
+    val out2 = new OutCellD(bias,r)
+    out2.setID(cellpop.getCounter)
+    cellpop.add2Counter
+    out2
   }
   def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : OutCellD = {
     val nc = new OutCellD(bias,rConns.complexify(in,blocks,memCells,out,addBlock,rnd))
@@ -40,7 +55,9 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
     rConns.dist(ocell2.getRecurrent)
   }
   def makeClone : OutCellD = {
-    new OutCellD(bias,rConns.makeClone)
+    val oc2 = new OutCellD(bias,rConns.makeClone)
+    oc2.setID(getID)
+    oc2
   }
   def equals(other:OutCellD) : Boolean = {
     (bias == other.getBias && rConns == other.getRecurrent)

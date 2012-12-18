@@ -11,11 +11,15 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   val inputPop = new Array[Array[InCellD]](inputs)
   val blockPop = new Array[Array[CellBlockD]](blocks)
   val outputPop = new Array[Array[OutCellD]](outputs)
+  var cellCounter:Long = 0
   
+  def add2Counter : Unit = { cellCounter += 1 }
+  def getCounter : Long = cellCounter
   def getSize : Int = popSize
   def getIn : Int = inputs
   def getOut : Int = outputs
   def getBlocks : Int = blocks
+  def getNumOfCells : Int = blockPop(0)(0).getSize
   def getInPop = inputPop
   def getBlockPop = blockPop
   def getOutPop = outputPop
@@ -37,6 +41,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         val rc = new NeuralConnsD(0,total)
         rc.addRandomConnections(numRec,rnd)
         inputPop(i)(j) = new InCellD(fc,rc)
+        inputPop(i)(j).setID(cellCounter)
+        cellCounter += 1
       }
     }
     for (i <- 0.until(blocks)) {
@@ -53,6 +59,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           rc(k).addRandomConnections(numRec,rnd)
         }
         blockPop(i)(j) = new CellBlockD(memBias,fc,rc)
+        blockPop(i)(j).setID(cellCounter)
+        cellCounter += 1
       }
     }
     for (i <- 0.until(outputs)) {
@@ -61,6 +69,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         val rc = new NeuralConnsD(0,total)
         rc.addRandomConnections(numRec,rnd)
         outputPop(i)(j) = new OutCellD(outBias,rc)
+        outputPop(i)(j).setID(cellCounter)
+        cellCounter += 1
       }
     }
   }
@@ -117,18 +127,24 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       inputPop(i) = new Array[InCellD](popSize)
       for (j <- 0 until popSize) {
         inputPop(i)(j) = in(i)(j)
+        inputPop(i)(j).setID(cellCounter)
+        cellCounter += 1
       }
     }
     for (i <- 0 until b.length) {
       blockPop(i) = new Array[CellBlockD](popSize)
       for (j <- 0 until popSize) {
         blockPop(i)(j) = b(i)(j)
+        blockPop(i)(j).setID(cellCounter)
+        cellCounter += 1
       }
     }
     for (i <- 0 until out.length) {
       outputPop(i) = new Array[OutCellD](popSize)
       for (j <- 0 until popSize) {
         outputPop(i)(j) = out(i)(j)
+        outputPop(i)(j).setID(cellCounter)
+        cellCounter += 1
       }
     }
   }
@@ -137,14 +153,20 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       for (j <- 0 until inputs) {
         val idx = i % 3 + 1 //rnd.nextInt(3)+1
         inputPop(j)(i) = inputPop(j)(popSize-idx).burstMutate(burstProb,dist,rnd)
+        inputPop(j)(i).setID(cellCounter)
+        cellCounter += 1
       }
       for (j <- 0 until blocks) {
         val idx = i % 3 + 1 //rnd.nextInt(3)+1
         blockPop(j)(i) = blockPop(j)(popSize-idx).burstMutate(burstProb,dist,rnd)
+        blockPop(j)(i).setID(cellCounter)
+        cellCounter += 1
       }
       for (j <- 0 until outputs) {
         val idx = i % 3 + 1 //rnd.nextInt(3)+1
         outputPop(j)(i) = outputPop(j)(popSize-idx).burstMutate(burstProb,dist,rnd)
+        outputPop(j)(i).setID(cellCounter)
+        cellCounter += 1
       }
     }
   }
@@ -236,16 +258,16 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       val nIn = new Array[Array[InCellD]](inputs)
       val nB = new Array[Array[CellBlockD]](blocks)
       val nOut = new Array[Array[OutCellD]](outputs)
-      val oldMid = inputs+mC
+      val cellpos = inputs + mC //the id of the first new memory cell
       for (i <- 0 until inputs) {
         nIn(i) = new Array[InCellD](popSize)
         for (j <- 0 until popSize) {
           nIn(i)(j) = inputPop(i)(j).complexify(inputs,blocks,mC,outputs,false,rnd)
-          while (rnd.nextDouble < connProb) {
-            nIn(i)(j).getForward.addConnection(oldMid+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
+          while (rnd.nextDouble < connProb/2) {
+            nIn(i)(j).getForward.addConnection(cellpos+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
           }
           if (rnd.nextDouble < connProb/3) {
-            nIn(i)(j).getRecurrent.addConnection(oldMid+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
+            nIn(i)(j).getRecurrent.addConnection(cellpos+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
           }
         }
       }
@@ -255,7 +277,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           nB(i)(j) = blockPop(i)(j).complexify(inputs,blocks,mC,outputs,false,rnd)
           for (k <- 0 until (mC+1)) {
             while (rnd.nextDouble < connProb/3) {
-              nB(i)(j).getRecurrent(k).addConnection(oldMid+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
+              nB(i)(j).getRecurrent(k).addConnection(cellpos+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
             }
           }
         }
@@ -265,12 +287,11 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         for (j <- 0 until popSize) {
           nOut(i)(j) = outputPop(i)(j).complexify(inputs,blocks,mC,outputs,false,rnd)
           while (rnd.nextDouble < connProb/3) {
-            nOut(i)(j).getRecurrent.addConnection(oldMid+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
+            nOut(i)(j).getRecurrent.addConnection(cellpos+rnd.nextInt(blocks)*(mC+3),rnd.nextDouble*0.4-0.2)
           }
         }
       }
       cPop.replaceCells(nIn,nB,nOut)
-      //println(addBlock+"\n"+cPop)
       cPop
     }
   }
@@ -376,6 +397,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           counter += 1
         }
         nextGen(k) = inputPop(i)(idx1).combine(inputPop(i)(idx2),dist,mutProb,flipProb)
+        nextGen(k).setID(cellCounter)
+        cellCounter += 1
       }
       inputPop(i) = nextGen
     }
@@ -392,6 +415,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           counter += 1
         }
         nextGen(j) = blockPop(i)(k).combine(blockPop(i)(l),dist,mutProb,flipProb)
+        nextGen(j).setID(cellCounter)
+        cellCounter += 1
       }
       blockPop(i) = nextGen
     }
@@ -413,6 +438,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         else {
           nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb)
         }
+        nextGen(j).setID(cellCounter)
+        cellCounter += 1
       }
       outputPop(i) = nextGen
     }
@@ -438,9 +465,13 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           counter += 1
         }
         nextGen(k) = inputPop(i)(idx1).combine(inputPop(i)(idx2),dist,mutProb,flipProb)
+        nextGen(k).setID(cellCounter)
+        cellCounter += 1
       }
       for (k <- h until popSize) {
         nextGen(k) = inputPop(i)(k)
+        nextGen(k).setID(cellCounter)
+        cellCounter += 1
       }
       inputPop(i) = nextGen
     }
@@ -457,9 +488,13 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           counter += 1
         }
         nextGen(j) = blockPop(i)(k).combine(blockPop(i)(l),dist,mutProb,flipProb)
+        nextGen(j).setID(cellCounter)
+        cellCounter += 1
       }
       for (j <- h until popSize) {
         nextGen(j) = blockPop(i)(j)
+        nextGen(j).setID(cellCounter)
+        cellCounter += 1
       }
       blockPop(i) = nextGen
     }
@@ -481,9 +516,13 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         else {
           nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb)
         }
+        nextGen(j).setID(cellCounter)
+        cellCounter += 1
       }
       for (j <- h until popSize) {
         nextGen(j) = outputPop(i)(j)
+        nextGen(j).setID(cellCounter)
+        cellCounter += 1
       }
       outputPop(i) = nextGen
     }
@@ -496,6 +535,58 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     outputPop = outC
   }
   */
+  
+  /*Counts the occurrences of identical cells within the given RNN and
+   * the cellpopulation without identical fitness values.
+   * Used for sanity check.
+   */
+  def setFitnessesBasedOnIDs(rnn:RNND) : Int = {
+    var sum = 0
+    for (i <- 0 until getIn) {
+      val cell = rnn.getIn(i)
+      val (f,id) = (cell.getFitness,cell.getID)
+      if (f > 0) {
+        val samecell = inputPop(i).find(_.getID == id)
+        if (samecell != None) {
+          val cell2 = samecell.get
+          if (cell2.getFitness == 0) {
+            cell2.copyFitness(cell.getFitness)
+            if (id != 0) sum += 1
+          }
+        }
+      }
+    }
+    for (i <- 0 until blocks) {
+      val block = rnn.getMid(i)
+      val (f,id) = (block.getFitness,block.getID)
+      if (f > 0) {
+        val sameblock = blockPop(i).find(_.getID == id)
+        if (sameblock != None) {
+          val block2 = sameblock.get
+          if (block2.getFitness == 0) {
+            block2.copyFitness(block.getFitness)
+            if (id != 0) sum += 1
+          }
+        }
+      }
+    }
+    for (i <- 0 until outputs) {
+      val cell = rnn.getOut(i)
+      val (f,id) = (cell.getFitness,cell.getID)
+      if (f > 0) {
+        val sameout = outputPop(i).find(_.getID == id)
+        if (sameout != None) {
+          val out2 = sameout.get
+          if (out2.getFitness == 0) {
+            out2.copyFitness(cell.getFitness)
+            if (id != 0) sum += 1
+          }
+        }
+      }
+    }
+    sum
+    //if (sum > 0) println("There were "+sum+" identical cells without fitness values set.")
+  }
   override def toString : String = {
     var srep = "<CellPopulation><InputPop>"
     for (i <- 0 until inputs) {
@@ -570,18 +661,24 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
       else {
         inputPop(i)(0) = cell.makeClone
+        inputPop(i)(0).setID(cellCounter)
+        cellCounter += 1
       }
     }
     for (i <- 0 until blocks) {
       val block = rnn.getMid(i)
       if (!blockPop(i).exists(_ == block)) {
         blockPop(i)(0) = block.makeClone
+        blockPop(i)(0).setID(cellCounter)
+        cellCounter += 1
       }
     }
     for (i <- 0 until outputs) {
       val outcell = rnn.getOut(i)
       if (!outputPop(i).exists(_ == outcell)) {
         outputPop(i)(0) = outcell.makeClone
+        outputPop(i)(0).setID(cellCounter)
+        cellCounter += 1
       }
     }
   }

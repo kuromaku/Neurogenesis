@@ -32,6 +32,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   val fsep = System.getProperty("file.separator")
   var savePath = "."+fsep+"saves"+fsep
   var printInfo = true
+  var debugMode = false
+  
   var myId = 0//id
   val maxBest = 5
   var bestNets = new Array[RNND](maxBest)
@@ -86,11 +88,16 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     maxBlocks = maxBlocks2
   }
   def isRunning : Boolean = updatingNow
+  
+  /*Evolino requires the use of a matrix form of the target data to do the linear regression
+   so this method initializes it when necessary
+   */
   def initMatrix : Unit = {
     matrix = NeuralOps.list2Matrix(dataSets.apply(1).drop(washoutTime)) //.drop(washoutTime)
   }
   var initialized = false
   def setMatrix(m2:DenseMatrix[Double]) : Unit = { matrix = m2; initialized = true }
+  
   def act : Unit = {
     if (!initialized && learningMode == 2 || learningMode == 4) {
       //Evolino requires an initialized data matrix
@@ -226,8 +233,15 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             
           }
           //netPop.repopulate(distribution,mutProb,flipProb,rnd)
+          var debugSum = 0
+          for (q <- 0 until netPopulation.netPop.length-1) {
+            debugSum += cellPopulation.setFitnessesBasedOnIDs(netPopulation.getRNN(q))
+          }
+          if (debugMode && debugSum > 0) {
+            println("DebugSum: "+debugSum)
+          }
           if (!mutateNow) {
-            cellRepopulator.repopulate(cellPopulation,distribution,schedule,rnd,discardRate)
+            cellPopulation = cellRepopulator.repopulate(cellPopulation,distribution,schedule,rnd,discardRate)
             /*
             if (learningMode == 0) {
               cellPopulation.repopulate(distribution,schedule,rnd)
@@ -411,7 +425,11 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
   }
   def sliceData2 : (List[Array[Double]],List[Array[Double]],List[Array[Double]],List[Array[Double]]) = {
     if (!partialDataFeed) {
-      (dataSets.apply(0),dataSets.apply(1),dataSets.apply(2),dataSets.apply(3))
+      dataSets.size match {
+        case 5 => (dataSets.apply(0),dataSets.apply(1),dataSets.apply(2),dataSets.apply(3))
+        case 4 => (dataSets.apply(0),dataSets.apply(1),dataSets.apply(2),dataSets.apply(3))
+        case _ => (dataSets.apply(0),dataSets.apply(1),null,null)
+      }
     }
     else {
       val (a0,a1) = dataSets.apply(0).splitAt(schedule.getFeedLength(0))
@@ -543,7 +561,8 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     }
     svmPar.kernel_type = svm_parameter.RBF
     svmPar.degree = 3
-    svmPar.gamma = 1.0/cellPopulation.getStateLength
+    val (bls,cls) = getMemorySize
+    svmPar.gamma = 1.0/(bls*cls+cellPop.getOut)
     svmPar.coef0 = 0
     svmPar.nu = 0.5
     svmPar.cache_size = 1

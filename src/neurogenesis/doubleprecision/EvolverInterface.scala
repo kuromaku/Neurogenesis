@@ -95,7 +95,7 @@ class EvolverInterface extends SimpleSwingApplication {
       def apply : Unit = {
         try {
           initialCells = memoryCellField.text.toInt
-          if (initialCells < 1) { initialCells = 0 }
+          if (initialCells < 1) { initialCells = 1 }
           reportArea.append("Initial Cells: "+initialCells+"\n")
         } catch {
           case _ => reportArea.append("Enter that number again.\n")
@@ -855,7 +855,7 @@ class EvolverInterface extends SimpleSwingApplication {
       allNets(i).init
       allEvolvers(i) = new NeuralEvolver(allPops(i),allNets(i),supervisor,supervisor.getReporter,rnd,discardRate)
       */
-      allEvolvers(i) = NeuralEvolver.makeEvolver(initialBlocks,initialCells,dims(0),dims(1),popSize,initialDistScale,supervisor,supervisor.getReporter)
+      allEvolvers(i) = NeuralEvolver.makeEvolver(initialBlocks,initialCells,dims(0),dims(1),popSize,initialDistScale,supervisor,supervisor.getReporter,discardRate)
       allEvolvers(i).addDLists(dworker.getDLists)
       if (modes.indexOf(modeSelector.selection.item) >= 3) {
         allEvolvers(i).initSVMLearner(dworker.getCols(0),regressionMode)//dworker.getNodes(1),
@@ -1267,6 +1267,8 @@ class EvolverInterface extends SimpleSwingApplication {
 	    openFiles.enabled_=(true)
 	    generateData.enabled_=(true)
 	    dworker.setDivideData(false)
+	    networksDrawn = 0
+	    netList = List[RNND]()
 	  }
 	  case ButtonClicked(`calculateValidationError`) => {
 	    val bestRNN = supervisor.getSuperStar.makeClone

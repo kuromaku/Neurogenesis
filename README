@@ -35,3 +35,7 @@ Of course eventually (after all the major bugs and performance issues have been 
 -- An experimental support for using support vector machine regression (mode: SVMBoost), provided by a minimally modified libsvm library included in the repository, has been added in order to boost the prediction performance in some situations in addition of least squares regression (mode: Evolino) implemented using the Scalala library.
 -- Some modularity in design allowing easy addition of evolutionary strategies
 -- The ability to set the minimum and maximum network sizes to bound the evolutionary process
+-- Visualization of evolved networks implemented using the JUNG-library
+
+==Development Blog==
+The author writes occasional blog posts related to the software at http://kuromakukreations.wordpress.com

@@ -20,7 +20,7 @@ class RNNLayout(graph:SparseGraph[Int,String],in:Int,blocks:Int,mcells:Int,out:I
     val h2 = h0/(out+1)
     for (i <- 0 until vl) {
       if (i < in) {
-        val p = new Point2D.Float(25,i*h0/in+20)
+        val p = new Point2D.Float(25,(i+1)*h0/(in+1)+20)
         map.put(i,p)
       }
       else if (i < mid) { //

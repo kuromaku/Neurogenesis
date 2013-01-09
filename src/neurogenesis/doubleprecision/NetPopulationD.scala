@@ -14,19 +14,20 @@ class NetPopulationD(cPop:CellPopulationD) {
   
   //val arrOps = implicitly[ArrayOps]
   def init : Unit = {
-    val inPerms = permutations(cPop.getSize,cPop.getIn)
-    val blockPerms = permutations(cPop.getSize,cPop.getBlocks)
-    val outPerms = permutations(cPop.getSize,cPop.getOut)
+    val psize = cPop.getSize
+    val inPerms = permutations(psize,cPop.getIn)
+    val blockPerms = permutations(psize,cPop.getBlocks)
+    val outPerms = permutations(psize,cPop.getOut)
     val n = cPop.getNetworks(inPerms,blockPerms,outPerms)
-    for (i <- 0 until cPop.getSize) {
+    for (i <- 0 until psize) {
       netPop(i) = n(i)
     }
-    val inPerms2 = permutations(cPop.getSize,cPop.getIn)
-    val blockPerms2 = permutations(cPop.getSize,cPop.getBlocks)
-    val outPerms2 = permutations(cPop.getSize,cPop.getOut)
+    val inPerms2 = permutations(psize,cPop.getIn)
+    val blockPerms2 = permutations(psize,cPop.getBlocks)
+    val outPerms2 = permutations(psize,cPop.getOut)
     val n2 = cPop.getNetworks(inPerms,blockPerms,outPerms)
-    for (i <- cPop.getSize until netPop.length) {
-      netPop(i) = n2(i-cPop.getSize)
+    for (i <- psize until netPop.length) {
+      netPop(i) = n2(i-psize)
     }
   }
   def init(n:Array[RNND]) : Unit = {

@@ -235,7 +235,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           //netPop.repopulate(distribution,mutProb,flipProb,rnd)
           var debugSum = 0
           for (q <- 0 until netPopulation.netPop.length-1) {
-            debugSum += cellPopulation.setFitnessesBasedOnIDs(netPopulation.getRNN(q))
+            debugSum += cellPopulation.setFitnessesBasedOnIDs(netPopulation.getRNN(q),cMeasure,complexityBias)
           }
           if (debugMode && debugSum > 0) {
             println("DebugSum: "+debugSum)
@@ -772,7 +772,7 @@ object NeuralEvolver {
   def makeEvolver(memoryBlocks:Int,memoryCells:Int,inputs:Int,outputs:Int,subpopSize:Int,distScale:Double,supervisor:EvolutionSupervisor,reporter:ProgressReporter,discardRate:Double=0.75) : NeuralEvolver = {
     var cellPopulation = new CellPopulationD(inputs,memoryBlocks,outputs,subpopSize)
     val rnd2 = new MersenneTwisterFast(System.currentTimeMillis)
-    cellPopulation.init(distScale,1,rnd2)
+    cellPopulation.init(distScale,1,rnd2,memoryBlocks+outputs,outputs)
     for (i <- 1 until memoryCells) {
       cellPopulation = cellPopulation.complexify(false,rnd2)
     }

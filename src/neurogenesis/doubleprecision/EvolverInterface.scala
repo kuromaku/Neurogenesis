@@ -292,9 +292,27 @@ class EvolverInterface extends SimpleSwingApplication {
           printInfo = false
         }
         supervisor.printInfo(printInfo)
+        printInfoMenuSelector.selected_=(printInfo)
       }
     }
     action_=(printAction)
+  }
+  object printInfoMenuSelector extends CheckMenuItem("Display Info") {
+    selected_=(printInfo)
+    object printAction2 extends Action("Display Info") {
+      def apply : Unit = {
+        if (printInfoMenuSelector.selected) {
+          reportArea.append("Now displaying info when evolving.\n")
+        }
+        else {
+          reportArea.append("Running in a silent mode.\n")
+        }
+        printInfo = printInfoMenuSelector.selected
+        printInfoSelector.selected_=(printInfo)
+        supervisor.printInfo(printInfo)
+      }
+    }
+    action_=(printAction2)
   }
   object threadsField extends TextField(numThreads.toString()) {
     object threadsAction extends Action("") {
@@ -530,9 +548,8 @@ class EvolverInterface extends SimpleSwingApplication {
       }
       try {
         printInfo = (e \\ "PrintInfo").text.toBoolean
-        if (printInfo) {
-          printInfoSelector.selected_=(true)
-        }
+        printInfoSelector.selected_=(printInfo)
+        printInfoMenuSelector.selected_=(printInfo)
       } catch {
         case _ => reportArea.append("Could not determine whether to print info all the time or not.\n")
       }
@@ -741,8 +758,7 @@ class EvolverInterface extends SimpleSwingApplication {
       contents += new Label("SpawnFreq:")
       contents += spawnFreqField//new Label("")
 
-      contents += new Label("SaveDir:")
-      contents += saveDirSelector
+
       contents += new Label("DiscardRate:")
       contents += discardRateField
       contents += new Label("MaxPopSize:")
@@ -751,6 +767,12 @@ class EvolverInterface extends SimpleSwingApplication {
       contents += memoryBlockField
       contents += new Label("MemCells:")
       contents += memoryCellField
+      contents += new Label("MaxBlocks:")
+      contents += maxBlocksField
+      contents += new Label("MaxCells:")
+      contents += maxCellsField      
+      contents += new Label("SaveDir:")
+      contents += saveDirSelector
       contents += new Label("Act Fun:")
       contents += functionChooser//actFunField
       contents += new Label("Cooling Schedule:")
@@ -765,10 +787,7 @@ class EvolverInterface extends SimpleSwingApplication {
       contents += mixingFreqField //new Label("")
       contents += new Label("MixingProb:")
       contents += mixingProbField
-      contents += new Label("Max Blocks:")
-      contents += maxBlocksField
-      contents += new Label("Max Cells:")
-      contents += maxCellsField
+
       contents += new Label("WashoutTime:")
       contents += washoutField
       
@@ -1062,7 +1081,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	    contents += stopEvolution
 	    contents += new Separator
 	    //contents += restartEvolution //the supervisor seemed to halt sometimes.. this tells it to go on again
-	    
+	    contents += printInfoMenuSelector
 	    
 	  }
 	  //name_=()
@@ -1719,7 +1738,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
     */
     val xml = XML.loadString(s)
-    prettyPrint(xml)
+    //prettyPrint(xml)
     var res = List[Node]()
     xml\\"RNND" foreach{(entry) => res = res.+:(entry) }
     var c = 0

@@ -28,7 +28,7 @@ class SimpleNetRepopulator extends NetRepopulator[NetPopulationD,CellPopulationD
           idx2 = rnd.nextInt(l)+l
         }
         if (count == 7) {
-          combines(i-l) = pop.netPop(i).burstMutate(mutP,dist,rnd)
+          combines(i-l) = pop.netPop(i).burstMutate(mutP,dist,rnd,pop2)
         }
         else {
           combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate,pop2)
@@ -57,7 +57,7 @@ class SimpleNetRepopulator extends NetRepopulator[NetPopulationD,CellPopulationD
             idx2 = rnd.nextInt(l)+l
           }
           if (count == 7) {
-            combines(i-l) = pop.netPop(i).burstMutate(mutP,dist,rnd)
+            combines(i-l) = pop.netPop(i).burstMutate(mutP,dist,rnd,pop2)
           }
           else {
             combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate,pop2)

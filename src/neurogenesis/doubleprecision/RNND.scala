@@ -106,18 +106,21 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
 	  rnn
 	}
 	*/
-  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : RNND = {
+  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast,cellPop:CellPopulationD) : RNND = {
     val il = new Array[InCellD](in)
     for (i <- 0 until in) {
       il(i) = inputLayer(i).burstMutate(prob,dist,rnd)
+      il(i).setID(cellPop.updateCounter)
     }
     val bl = new Array[CellBlockD](numBlocks)
     for (i <- 0 until numBlocks) {
       bl(i) = cellBlocks(i).burstMutate(prob,dist,rnd)
+      bl(i).setID(cellPop.updateCounter)
     }
     val ol = new Array[OutCellD](out)
     for (i <- 0 until out) {
       ol(i) = outputLayer(i).burstMutate(prob,dist,rnd)
+      ol(i).setID(cellPop.updateCounter)
     }
     new RNND(il,bl,ol)
   }
@@ -155,6 +158,9 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     new RNND(il,bl,ol)
   }
+  /*Combines networks with mutation plus sets the cell IDs
+   * 
+   */
   def combine(net2:RNND,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double,cellpop:CellPopulationD) : RNND = {
     val il = new Array[InCellD](in)
     val bl = new Array[CellBlockD](numBlocks)

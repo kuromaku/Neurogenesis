@@ -15,6 +15,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   
   def add2Counter : Unit = { cellCounter += 1 }
   def getCounter : Long = cellCounter
+  def updateCounter : Long = { val c = cellCounter; add2Counter; c }
   def getSize : Int = popSize
   def getIn : Int = inputs
   def getOut : Int = outputs
@@ -39,10 +40,11 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         val fc = new NeuralConnsD(inputs,total)
         fc.addRandomConnections(numFor,rnd)
         val rc = new NeuralConnsD(0,total)
-        rc.addRandomConnections(numRec,rnd)
+        if (numRec > 1) rc.addRandomConnections(numRec-1,rnd)
+        else rc.addRandomConnections(numRec,rnd)
         inputPop(i)(j) = new InCellD(fc,rc)
         inputPop(i)(j).setID(cellCounter)
-        cellCounter += 1
+        add2Counter
       }
     }
     for (i <- 0.until(blocks)) {
@@ -54,7 +56,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         val rc = new Array[NeuralConnsD](mCells)
         for (k <- 0 until mCells) {
           fc(k) = new NeuralConnsD(mid,total)
-          fc(k).addRandomConnections(numFor,rnd)
+          fc(k).addRandomConnections(numFor-blocks,rnd)
           rc(k) = new NeuralConnsD(0,total)
           rc(k).addRandomConnections(numRec,rnd)
         }
@@ -103,15 +105,15 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   def getRNN2(idx:Int,permsIn:Array[Array[Int]],permsB:Array[Array[Int]],permsOut:Array[Array[Int]]) : RNND = {
     val ic = new Array[InCellD](inputs)
     for (i <- 0.until(inputs)) {
-      ic(i) = inputPop(i)(permsIn(i)(idx))
+      ic(i) = inputPop(i)(permsIn(i)(idx)).makeClone
     }
     val bc = new Array[CellBlockD](blocks)
     for (i <- 0.until(blocks)) {
-      bc(i) = blockPop(i)(permsB(i)(idx))
+      bc(i) = blockPop(i)(permsB(i)(idx)).makeClone
     }
     val oc = new Array[OutCellD](outputs)
     for (i <- 0.until(outputs)) {
-      oc(i) = outputPop(i)(permsOut(i)(idx))
+      oc(i) = outputPop(i)(permsOut(i)(idx)).makeClone
     }
     return new RNND(ic,bc,oc)
   }
@@ -540,7 +542,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
    * the cellpopulation without identical fitness values.
    * Used for sanity check.
    */
-  def setFitnessesBasedOnIDs(rnn:RNND) : Int = {
+  def setFitnessesBasedOnIDs(rnn:RNND,measure:ComplexityMeasure,cbias:Double) : Int = {
     var sum = 0
     for (i <- 0 until getIn) {
       val cell = rnn.getIn(i)
@@ -550,9 +552,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         if (samecell != None) {
           val cell2 = samecell.get
           if (cell2.getFitness == 0) {
-            cell2.copyFitness(cell.getFitness)
             if (id != 0) sum += 1
           }
+          cell2.setFitness(cell.getFitness,measure,cbias)
         }
       }
     }
@@ -564,9 +566,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         if (sameblock != None) {
           val block2 = sameblock.get
           if (block2.getFitness == 0) {
-            block2.copyFitness(block.getFitness)
             if (id != 0) sum += 1
           }
+          block2.setFitness(block.getFitness,measure,cbias)
         }
       }
     }
@@ -578,9 +580,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         if (sameout != None) {
           val out2 = sameout.get
           if (out2.getFitness == 0) {
-            out2.copyFitness(cell.getFitness)
             if (id != 0) sum += 1
           }
+          out2.setFitness(cell.getFitness,measure,cbias)
         }
       }
     }

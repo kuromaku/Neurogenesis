@@ -32,7 +32,7 @@ class VariableNetRepopulator(deathRate:Double) extends NetRepopulator[NetPopulat
           idx2 = rnd.nextInt(num)+l
         }
         if (count == 7) {
-          combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd)
+          combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd,pop2)
         }
         else {
           combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate,pop2)
@@ -58,7 +58,7 @@ class VariableNetRepopulator(deathRate:Double) extends NetRepopulator[NetPopulat
             idx2 = rnd.nextInt(num)+l
           }
           if (count == 7) {
-            combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd)
+            combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd,pop2)
           }
           else {
             combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate,pop2)

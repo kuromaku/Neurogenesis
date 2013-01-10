@@ -25,7 +25,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     val inPerms2 = permutations(psize,cPop.getIn)
     val blockPerms2 = permutations(psize,cPop.getBlocks)
     val outPerms2 = permutations(psize,cPop.getOut)
-    val n2 = cPop.getNetworks(inPerms,blockPerms,outPerms)
+    val n2 = cPop.getNetworks(inPerms2,blockPerms2,outPerms2)
     for (i <- psize until netPop.length) {
       netPop(i) = n2(i-psize)
     }
@@ -38,7 +38,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     val cauchy = new CauchyDistribution(0.005)
     val np = new Array[RNND](netPop.length)
     for (i <- 0 until netPop.length) {
-      np(i) = netPop(i).burstMutate(0.1,cauchy,rnd)
+      np(i) = netPop(i).burstMutate(0.1,cauchy,rnd,cPop)
     }
     val cp = new CellPopulationD(1,1,1,1)
     val np2 = new NetPopulationD(cp)
@@ -115,7 +115,7 @@ class NetPopulationD(cPop:CellPopulationD) {
       }
       if (count == 7) {
         //maybe burstMutate?
-        netPop(i) = netPop(idx1).burstMutate(mutP,dist,rnd)
+        netPop(i) = netPop(idx1).burstMutate(mutP,dist,rnd,cPop)
         //netPop(i).reset
       }
       else {

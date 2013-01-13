@@ -32,10 +32,10 @@ class VariableNetRepopulator(deathRate:Double) extends NetRepopulator[NetPopulat
           idx2 = rnd.nextInt(num)+l
         }
         if (count == 7) {
-          combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd)
+          combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd,pop2)
         }
         else {
-          combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate)
+          combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate,pop2)
         }
       }
       pop.setSorted(false)
@@ -58,16 +58,16 @@ class VariableNetRepopulator(deathRate:Double) extends NetRepopulator[NetPopulat
             idx2 = rnd.nextInt(num)+l
           }
           if (count == 7) {
-            combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd)
+            combines(i-l) = pop.netPop(idx1).burstMutate(mutP,dist,rnd,pop2)
           }
           else {
-            combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate)
+            combines(i-l) = pop.netPop(idx1).combine(pop.netPop(idx2),dist,mutP,flipP,rnd,discardRate,pop2)
           }
         }
         else {
           val idx1 = rnd.nextInt(num)+l
           val idx2 = rnd.nextInt(bestNets.length)
-          combines(i-l) = pop.netPop(idx1).combine(bestNets(idx2),dist,mutP,flipP,rnd,discardRate)
+          combines(i-l) = pop.netPop(idx1).combine(bestNets(idx2),dist,mutP,flipP,rnd,discardRate,pop2)
         }
       }
       pop.setSorted(false)

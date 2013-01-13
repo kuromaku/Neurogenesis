@@ -16,6 +16,7 @@ import edu.uci.ics.jung.visualization.renderers.Renderer.VertexLabel.Position
 import java.awt.Image
 import java.awt.image.RenderedImage
 import java.awt.Point
+import java.awt.Color
 import javax.imageio.ImageIO
 import java.awt.Graphics2D
 import javax.swing.JFrame
@@ -38,6 +39,7 @@ class GraphWorker(method:String) extends Actor {
           val displayWindow = new JFrame("Sketch of a network found using layout: "+layoutMethod+" (fitness: "+rnn.getFitnessString+")")
           //
           displayWindow.setPreferredSize(new Dimension(800,600))
+          
           /*
           val displayPanel = new DisplayPanel(img)
           displayPanel.setBorder(new EtchedBorder)
@@ -50,6 +52,7 @@ class GraphWorker(method:String) extends Actor {
           val defMouse = new DefaultModalGraphMouse
           defMouse.setMode(ModalGraphMouse.Mode.TRANSFORMING)
           vServer.setGraphMouse(defMouse)
+          vServer.setBackground(new Color(128,128,128))
           displayWindow.setContentPane(vServer)//displayPanel)
           displayWindow.pack()
           displayWindow.setVisible(true)

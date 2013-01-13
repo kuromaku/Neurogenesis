@@ -1,8 +1,7 @@
 package neurogenesis.doubleprecision
 
 import neurogenesis.msg._
-import neurogenesis.util.ProgressReporter
-
+import neurogenesis.util._
 import scala.actors.Actor
 import scala.collection.immutable.Queue
 import scala.swing.TextArea
@@ -29,10 +28,9 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   var maxFit = 0.0d
   var saveCounter = 1
   var saveFrequency = 5000L
-  
+  var cmeasure:ComplexityMeasure = new SimpleMeasure
   var exitCounter = 0
   var totalCounter = 0L
-  
   var saveOnExit = saveWhenExiting
   var running = false
   var maxID = 0
@@ -41,7 +39,9 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   var mixingStep = 1
   var maxBlocks = 20
   var maxCells = 20
+  var washoutTime = 100
   var exitInProgress = false
+  
   def act : Unit = {
     loop {
       react {
@@ -127,7 +127,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             
           }
           processData
-          if (mixingFreq > 1) {
+          if (mixingFreq > 10) {//will not allow absurdly frequent mixing
             if (mixingStep % mixingFreq == 0) {
               val numMixed = mixPopulations(mixingProb)
               reporter ! ProgressMessage("Mixed "+numMixed+" populations")
@@ -136,10 +136,6 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             else {
               mixingStep += 1
             }
-          }
-          totalCounter += 1
-          if (totalCounter % 100 == 0) {
-            reporter ! ProgressMessage("Combined total number of evolutionary steps: "+totalCounter)
           }
           this ! UpdateNow(counter)
         }
@@ -204,6 +200,8 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
       evolvers(idx) = (e,0)
       e.setID(idx)
       //e.setSaveFreq(saveFrequency.toInt)
+      e.setComplexityMeasure(cmeasure)
+      e.setWashoutTime(washoutTime)
       e.start
       maxID += 1
     }
@@ -217,7 +215,9 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     e.setID(maxID)
     arr(evolvers.length) = (e,0)
     evolvers = arr
+    e.setComplexityMeasure(cmeasure)
     e.setPrintInfo(printInfo)
+    e.setWashoutTime(washoutTime)
     e.start()
     maxID += 1
   }
@@ -232,7 +232,9 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
       if (evo != null) {
         evo.setID(maxID)
         arr(k+s) = (evo,0)
+        evo.setComplexityMeasure(cmeasure)
         evo.setPrintInfo(printInfo)
+        evo.setWashoutTime(washoutTime)
         evo.start
         maxID += 1
         s += 1
@@ -278,6 +280,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   def getReporter : ProgressReporter = reporter
   def getNumberOfEvolvers = numEvolvers
   def mixPopulations(mixProb:Double) : Int = {
+    //TODO: Make this threadsafe
     var numMixed = 0
     for (i <- 0 until (evolvers.length-1)) {
       val memPar = evolvers(i)._1.getMemorySize
@@ -293,12 +296,16 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     }
     numMixed
   }
+  def setComplexityMeasure(measure2:ComplexityMeasure) : Unit = {
+    cmeasure = measure2
+  }
   def setThreads(maxT:Int) : Unit = { 
     maxThreads = maxT
     if (!running) {
       evolvers = new Array[(NeuralEvolver,Int)](maxThreads)
     } 
   }
+  def setWashoutTime(time:Int) : Unit = { washoutTime = time }
   def setMaximumGenerations(g:Long) : Unit = { maxGenerations = g }
   def setPrintInfo(b:Boolean) : Unit = { printInfo = b }
   def processData : Unit = {
@@ -332,11 +339,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     exitCounter = 0
     totalCounter = 0
   }
-  /*Searches the populations for the most fit network and returns it if such is found
-   * 
-   */
   def getSuperStar : RNND = {
-    var found = false
     var idx = 0
     while (idx < evolvers.size) {
       val n = evolvers(idx)._1.getBestIfPossible(maxFit)
@@ -350,22 +353,21 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     return null
     /*
     var best = evolvers(0)._1.getBest
-    var cidx = 1
-    var idx = 0
+    
     var f = 0.0
     if (best != null) {
       f = best.getFitness
     }
-    while (cidx < evolvers.size) {
-      val candidate = evolvers(cidx)._1.getBest
+    while (bi < evolvers.size) {
+      val candidate = evolvers(bi)._1.getBest
       if (candidate != null) {
         val f2 = candidate.getFitness
         if (f2 > f) {
           f = f2
-          idx = cidx
+          idx = bi
         }
       }
-      cidx += 1
+      bi += 1
     }
     evolvers(idx)._1.getBest
     */

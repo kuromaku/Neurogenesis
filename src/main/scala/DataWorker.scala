@@ -20,7 +20,7 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	var data = List[List[Array[Double]]]()
 	var counter = 0
 	var normalizers = List[Array[(Double,Double)]]()
-	var extVals = List[List[(Double,Double)]]() //used to hold the extreme values which determine normalization factors
+	var extVals = List[List[(Double,Double)]]() //used to hold the extreme values which determine the normalization factors
 	var normalized = false
 	var dimensionsAgree = true
 	var normalize = autoNormalize
@@ -30,6 +30,8 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	var svmReady = false
 	var normalMode = true
 	var allFromOneArray = false
+	var washoutTime = 100
+	
 	def getCount : Int = counter
 	def getData(idx:Int) : List[Array[Double]] = data.apply(idx)
 	def normalizeData(b:Boolean) : Unit = { normalize = b }
@@ -37,6 +39,7 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	def getCols(idx:Int) = svmCols.apply(idx)
 	def setMode(b:Boolean) : Unit = { normalMode = b }
 	def setDivideData(b:Boolean) : Unit = { allFromOneArray = b }
+	def setWashoutTime(t:Int) : Unit = { washoutTime = t }
 	def checkData : Unit = {
 	  if (counter == 2) {
 	    if (data.head(0).length == data.tail.head(0).length) {
@@ -132,6 +135,33 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	    matrix2List(mat)
 	    counter += 1
 	  }
+	}
+	def computeExtremes(src:Array[Array[Double]]) : Unit = {
+	  var colExt = List[(Double,Double)]()
+	  val numCols = src(0).length	  
+	  def findMin(arr:Array[Array[Double]],cnum:Int) : Double = {
+	    var min = arr(0)(cnum)
+	    for (i <- 1 until arr.length) {
+	      if (arr(i)(cnum) < min) {
+	        min = arr(i)(cnum)
+	      }
+	    }
+	    min
+	  }
+	  def findMax(arr:Array[Array[Double]],cnum:Int) : Double = {
+	    var max = arr(0)(cnum)
+	    for (i <- 1 until arr.length) {
+	      if (arr(i)(cnum) > max) {
+	        max = arr(i)(cnum)
+	      }
+	    }
+	    max
+	  }
+	  val norm = new Array[(Double,Double)](numCols)
+	  for (i <- 0 until numCols) {
+	    colExt = colExt.:+((findMin(src,i),findMax(src,i)))
+	  }
+	  extVals = extVals.:+(colExt)
 	}
 	def readMatrix2(src:File) : Unit = {
 	  val fileIn = new BufferedInputStream(new FileInputStream(src))
@@ -456,11 +486,12 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	}
 	def data2svmformat(idx:Int) : Unit = {
 	  
-	  val t = data.apply(idx+1)
-	  var i = 0
+	  val t = if (idx == 0) data.apply(idx+1).drop(washoutTime) else data.apply(idx+1)
+	  
 	  val l = t.size
 	  val svmCol = Array.ofDim[Double](t(0).length,l)
 	  
+	  var i = 0
 	  for (row <- t) {
 	    for (j <- 0 until row.length) {
 	      svmCol(j)(i) = row(j)
@@ -482,17 +513,23 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	    svmReady = true
 	  }
 	}
-	def generateData : Unit = {
+	def generateData(dl:Int) : Unit = {
 	  val generator = new DataGenerator
-	  val inData = generator.createInputData(1000)
-	  val outData = generator.createOutputData(inData)
-	  val (a,b) = inData.toList.splitAt(700)
-	  val (c,d) = outData.toList.splitAt(700)
-	  data = data.:+(a)
-	  data = data.:+(c)
-	  data = data.:+(b)
-	  data = data.:+(d)
+	  val (inData,outData) = generator.createDataset(dl)//
+	  /*generator.createInputData(dl)
+	  val  = generator.createOutputData(inData)
+	  */
+	  val (a,b) = inData.splitAt((dl*0.7).toInt)
+	  val (c,d) = outData.splitAt((dl*0.7).toInt)
+	  computeExtremes(a)
+	  computeExtremes(b)
+	  computeExtremes(c)
+	  computeExtremes(d)
+	  data = data.:+(a.toList)
+	  data = data.:+(c.toList)
+	  data = data.:+(b.toList)
+	  data = data.:+(d.toList)
 	  counter = 4
-	  normalized = true
+	  normalizeAll
 	}
 }

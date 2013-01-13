@@ -1,9 +1,5 @@
 package neurogenesis.doubleprecision
-import neurogenesis.util.SimpleSchedule
-import neurogenesis.util.CoolingSchedule
-import neurogenesis.util.Distribution
-import neurogenesis.util.CauchyDistribution
-
+import neurogenesis.util._
 import scalala.library.random.MersenneTwisterFast
 class NeuralEvolver2(cellPop:CellPopulationD,netPop:NetPopulationD,rnd:MersenneTwisterFast,discardRate:Double=0.75) {
   var cellRepopulator:Repopulator[CellPopulationD] = new BasicRepopulator
@@ -11,8 +7,7 @@ class NeuralEvolver2(cellPop:CellPopulationD,netPop:NetPopulationD,rnd:MersenneT
   var schedule: CoolingSchedule = new SimpleSchedule(0.05,0.02,50000)
   val bestNets = new Array[RNND](5)
   val distribution = new CauchyDistribution(0.03)
-  var cMeasure = new SimpleMeasure
-  
+  var cmeasure:ComplexityMeasure = new SimpleMeasure //
   def getNet(idx:Int) : RNND = {
     netPop.getRNN(idx)
   }
@@ -21,6 +16,6 @@ class NeuralEvolver2(cellPop:CellPopulationD,netPop:NetPopulationD,rnd:MersenneT
     netRepopulator.repopulate(netPop,cellPop,bestNets,distribution,schedule,rnd,discardRate)
   }
   def setFitness(idx:Int,f:Double) : Unit = {
-    netPop.getRNN(idx).setFitness(f,cMeasure,3)
+    netPop.getRNN(idx).setFitness(f,cmeasure,3)
   }
 }

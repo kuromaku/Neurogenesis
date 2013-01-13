@@ -8,7 +8,7 @@ import scalala.library.random.MersenneTwisterFast
  * to add diversity
  */
 class RandCellRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] {
-  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: MersenneTwisterFast,discardRate:Double=0.75): Unit = { 
+  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: MersenneTwisterFast,discardRate:Double=0.75): CellPopulationD = { 
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
     val popSize = pop.getSize
@@ -110,7 +110,7 @@ class RandCellRepopulator(deathRate:Double) extends Repopulator[CellPopulationD]
     
     val neoPop = new CellPopulationD(inputs,blocks,outputs,popSize)
     neoPop.replaceCells(inputPop,blockPop,outputPop)
-    
+    neoPop
   }
   override def toString : String = "RandCellRepopulator"
 }

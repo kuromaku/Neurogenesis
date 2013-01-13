@@ -8,25 +8,26 @@ import scala.xml.TopScope
 import scala.xml.NodeSeq
 
 class NetPopulationD(cPop:CellPopulationD) {
-  var netPop = new Array[RNND](cPop.getSize*2)
+  var netPop = new Array[RNND](cPop.getSize*2) //some cells will be used in more than one network
   var sorted = false
   def setSorted(b:Boolean) : Unit = { sorted = b }
   
   //val arrOps = implicitly[ArrayOps]
   def init : Unit = {
-    val inPerms = permutations(cPop.getSize,cPop.getIn)
-    val blockPerms = permutations(cPop.getSize,cPop.getBlocks)
-    val outPerms = permutations(cPop.getSize,cPop.getOut)
+    val psize = cPop.getSize
+    val inPerms = permutations(psize,cPop.getIn)
+    val blockPerms = permutations(psize,cPop.getBlocks)
+    val outPerms = permutations(psize,cPop.getOut)
     val n = cPop.getNetworks(inPerms,blockPerms,outPerms)
-    for (i <- 0 until cPop.getSize) {
+    for (i <- 0 until psize) {
       netPop(i) = n(i)
     }
-    val inPerms2 = permutations(cPop.getSize,cPop.getIn)
-    val blockPerms2 = permutations(cPop.getSize,cPop.getBlocks)
-    val outPerms2 = permutations(cPop.getSize,cPop.getOut)
-    val n2 = cPop.getNetworks(inPerms,blockPerms,outPerms)
-    for (i <- cPop.getSize until netPop.length) {
-      netPop(i) = n2(i-cPop.getSize)
+    val inPerms2 = permutations(psize,cPop.getIn)
+    val blockPerms2 = permutations(psize,cPop.getBlocks)
+    val outPerms2 = permutations(psize,cPop.getOut)
+    val n2 = cPop.getNetworks(inPerms2,blockPerms2,outPerms2)
+    for (i <- psize until netPop.length) {
+      netPop(i) = n2(i-psize)
     }
   }
   def init(n:Array[RNND]) : Unit = {
@@ -37,7 +38,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     val cauchy = new CauchyDistribution(0.005)
     val np = new Array[RNND](netPop.length)
     for (i <- 0 until netPop.length) {
-      np(i) = netPop(i).burstMutate(0.1,cauchy,rnd)
+      np(i) = netPop(i).burstMutate(0.1,cauchy,rnd,cPop)
     }
     val cp = new CellPopulationD(1,1,1,1)
     val np2 = new NetPopulationD(cp)
@@ -114,7 +115,7 @@ class NetPopulationD(cPop:CellPopulationD) {
       }
       if (count == 7) {
         //maybe burstMutate?
-        netPop(i) = netPop(idx1).burstMutate(mutP,dist,rnd)
+        netPop(i) = netPop(idx1).burstMutate(mutP,dist,rnd,cPop)
         //netPop(i).reset
       }
       else {

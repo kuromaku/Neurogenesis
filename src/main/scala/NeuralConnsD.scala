@@ -12,16 +12,20 @@ import scala.xml.Elem
 import scala.xml.NodeSeq
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
+import neurogenesis.util.CComplexityMeasure
 import scalala.library.random.MersenneTwisterFast
 
+/*A class that represents the connections the artificial neurons can have
+ * in a given network.
+ */
 class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
   //type T = Double
 	var minNode = min
 	var maxNode = max
 	var conns:Map[Int,(Double,Boolean)] = new TreeMap[Int,(Double,Boolean)]()(Ordering.Int)
 	def getMap = conns
-	def getConns : Map[Int,Double] = {
-	  var tmap = Map[Int,Double]() //(conns
+	def getConns : Map[Int,Double] = { //shouldn't be used that often as this is computationally expensive
+	  var tmap = Map[Int,Double]()
 	  for ((d,(w,b)) <- conns) {
 	    if (b) {
 	      tmap = tmap + ((d,w))
@@ -30,7 +34,6 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	  tmap
 	}
 	def getConns2 : Iterator[(Int,(Double,Boolean))] = conns.toIterator
-	def size : Int = conns.size
 	def setConns(c:Map[Int,(Double,Boolean)]) : Unit = { conns = c }
 	def getMin : Int = minNode
 	def getMax : Int = maxNode
@@ -135,13 +138,15 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	    }
 	    
 	  }
-	  while (rnd.nextDouble < prob) {
+	  var modProb = prob
+	  while (rnd.nextDouble < modProb) {
 	    if (rnd.nextDouble < 0.5) {
 	      n.addRandomConnection(rnd)
 	    }
 	    else {
 	      n.removeRandomConnection(rnd)
 	    }
+	    modProb *= 0.75
 	  }
 	  n
 	}
@@ -168,6 +173,15 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	    c2 = c2 + ((conn._1,(conn._2._1+dist.inverse(scala.math.random),true)))
 	  }
 	  conns = c2
+	}
+	def calculateComplexity : Double = {
+	  var sum = 0.0
+	  for ((a,(w,b)) <- conns) {
+	    if (b) {
+	      sum += w*w
+	    }
+	  }
+	  sum
 	}
 	def combine(nc2:NeuralConnsD,dist:Distribution,mutP:Double,flipP:Double) : NeuralConnsD = {
 		var nc = new NeuralConnsD(minNode,maxNode)
@@ -740,13 +754,25 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	def getDestinations : Set[Int] = {
 	  conns.keySet
 	}
-	def calculateComplexity : Double = {
+	/*
+	def calculateComplexity(msr:CComplexityMeasure) : Double = {
+	  val size = conns.size
 	  var sum = 0.0
 	  for (c <- conns) {
 	    sum += c._2._1*c._2._1
 	  }
-	  sum
+	  scala.math.log(5+sum)
+	  /*
+	  val mod = scala.math.log(size)
+	  if (mod >= 1) {
+	    sum/mod
+	  }
+	  else {
+	    sum
+	  }
+	  */
 	}
+	*/
 	def dist(nc2:NeuralConnsD) : Double = {
 	  var d = 0.0
 	  val c2 = nc2.getConns
@@ -769,7 +795,7 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	  isEqualTo(other)
 	}
 	def isEqualTo(nc2:NeuralConnsD) : Boolean = {
-	  if (nc2.getConns.size != conns.size) {
+	  if (nc2.conns.size != conns.size) {
 	    return false
 	  }
 	  val iter = nc2.getConns2
@@ -804,6 +830,14 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0) {
 	}
 	def setMax(m:Int) : Unit = { maxNode = m}
 	def setMin(m:Int) : Unit = { minNode = m}
+	def enforceMin(min2:Int) : Unit = {
+	  minNode = min2
+	  conns = conns.filter(_._1 >= minNode)
+	}
+	def enforceMax(max2:Int) : Unit = {
+	  maxNode = max2
+	  conns = conns.filter(_._1 <= maxNode)
+	}
 	def connsToString : String = conns.toString()
 	def toString2() : String = "<NeuralConnsD>\n"+conns.toString+"\n</NeuralConnsD>"
 	override def toString : String = conns.toString

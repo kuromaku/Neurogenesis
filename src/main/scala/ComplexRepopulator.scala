@@ -6,7 +6,7 @@ import scalala.library.random.MersenneTwisterFast
 
 class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] {
 
-  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: MersenneTwisterFast,discardRate:Double=0.75): Unit = { 
+  def repopulate(pop: CellPopulationD, dist: Distribution, schedule: CoolingSchedule, rnd: MersenneTwisterFast,discardRate:Double=0.75): CellPopulationD = { 
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
     val popSize = pop.getSize
@@ -83,8 +83,8 @@ class ComplexRepopulator(deathRate:Double) extends Repopulator[CellPopulationD] 
     }
     
     val neoPop = new CellPopulationD(inputs,blocks,outputs,popSize)
-    neoPop.replaceCells(inputPop,blockPop,outputPop)
-    
+    neoPop.replaceCells(inputPop,blockPop,outputPop) //this also takes care of setting the new cell IDs
+    neoPop
   }
   override def toString : String = "ComplexRepopulator with deathrate: "+deathRate.toString
 }

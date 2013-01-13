@@ -4,6 +4,7 @@ import scalala.library.random.MersenneTwisterFast
 import scala.xml._
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
+import neurogenesis.util.CComplexityMeasure
 
 class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD]) extends EvolvableD {
  val memState = new Array[Double](fConns.length)
@@ -49,7 +50,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  def getForward(idx:Int) : NeuralConnsD = fConns(idx)
  def getRecurrent(idx:Int) : NeuralConnsD = rConns(idx)
  def flipBits(p:Double,rnd:MersenneTwisterFast) : Unit = for (i <- 0 until 3) { if (rnd.nextDouble < p) gateBits(i) = !gateBits(i) }
- def addMersenneTwisterFastConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
+ def addRandomConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
    var sum = 0
    for (i <- 0 until fConns.length) {
      for (j <- 0.to(num)) {
@@ -74,6 +75,19 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    b2.flipBits(prob/5,rnd)
    return b2
  }
+ def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast,cpop:CellPopulationD) : CellBlockD = {
+   val fc = new Array[NeuralConnsD](fConns.length)
+   val rc = new Array[NeuralConnsD](rConns.length)
+   for (i <- 0 until fConns.length) {
+     fc(i) = fConns(i).burstMutate(prob,dist,rnd)
+     rc(i) = rConns(i).burstMutate(prob,dist,rnd)
+   }
+   val b2 = new CellBlockD(bias,fc,rc)
+   b2.flipBits(prob/5,rnd)
+   b2.setID(cpop.getCounter)
+   cpop.add2Counter
+   return b2
+ } 
  def combine(block2:CellBlockD,dist:Distribution,mutP:Double,flipP:Double) : CellBlockD = {
    var f = new Array[NeuralConnsD](memState.length)
    var r = new Array[NeuralConnsD](memState.length)
@@ -103,6 +117,30 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
        b2.gateBits(i) = block2.gateBits(i)
      }
    }
+   b2
+ }
+ def combine(block2:CellBlockD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double,cellpop:CellPopulationD) : CellBlockD = {
+   var f = new Array[NeuralConnsD](memState.length)
+   var r = new Array[NeuralConnsD](memState.length)
+   for (i <- 0 until f.length) {
+     f(i) = fConns(i).combine(block2.getForward(i),dist,mutP,flipP,rnd,discardRate)
+     r(i) = rConns(i).combine(block2.getRecurrent(i),dist,mutP,flipP,rnd,discardRate)
+   }
+   var bias2 = if (rnd.nextDouble < 0.5) { bias } else block2.bias
+   bias2 = bias2+{if (rnd.nextDouble < mutP) dist.inverse(rnd.nextDouble) else 0}
+   if (bias2 > 5) { bias2 = 5} else if (bias2 < -5) { bias2 = -5 }
+   val b2 = new CellBlockD(bias2,f,r)
+
+   for (i <- 0 until 3) {
+     if (rnd.nextDouble < 0.5) {
+       b2.gateBits(i) = this.gateBits(i)
+     }
+     else {
+       b2.gateBits(i) = block2.gateBits(i)
+     }
+   }
+   b2.setID(cellpop.getCounter)
+   cellpop.add2Counter
    b2
  }
  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : CellBlockD = {
@@ -170,6 +208,14 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    d
  }
+ def gatherConnections : List[NeuralConnsD] = {
+   var clist = List[NeuralConnsD]()
+   for (i <- 0 until fConns.length) {
+     clist = clist.+:(fConns(i))
+     clist = clist.+:(rConns(i))
+   }
+   clist
+ }
  def equals(other:CellBlockD) : Boolean = {
    if (bias != other.bias) {
      false
@@ -192,14 +238,6 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    true
  }
- def gatherConnections : List[NeuralConnsD] = {
-   var clist = List[NeuralConnsD]()
-   for (i <- 0 until fConns.length) {
-     clist = clist.+:(fConns(i))
-     clist = clist.+:(rConns(i))
-   }
-   clist
- }
  def makeClone : CellBlockD = {
    val f = new Array[NeuralConnsD](fConns.length)
    val r = new Array[NeuralConnsD](rConns.length)
@@ -211,15 +249,25 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    for (i <- 0 until 3) {
      b2.gateBits(i) = this.gateBits(i)
    }
+   b2.setID(getID)
    b2
  }
  def reset : Unit = {
    for (i <- 0 until memState.length) {
      memState(i) = 0
    }
+   for (i <- 0 until stims.length) {
+     stims(i) = 0
+   }
  }
- override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
-   var c = measure.calculateComplexity(this.gatherConnections,cBias)
+ override def setFitness(f:Double,msr:ComplexityMeasure,cBias:Double) : Unit = {
+   var c = msr.calculateComplexity(this.gatherConnections,cBias)
+   /*
+   for (i <- 0 until fConns.length) {
+     c += msr.calculateComplexity(fConns(i)) + msr.calculateComplexity(rConns(i))
+   }
+   */
+   
    val fCand = f/c
    if (fCand > fitness) {
      fitness = fCand

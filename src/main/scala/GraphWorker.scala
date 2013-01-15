@@ -21,11 +21,18 @@ import javax.imageio.ImageIO
 import java.awt.Graphics2D
 import javax.swing.JFrame
 import javax.swing.JPanel
+import javax.swing.JMenu
+import javax.swing.JMenuItem
+import javax.swing.JMenuBar
+import javax.swing.JFileChooser
+import javax.swing.AbstractAction
 import edu.uci.ics.jung.graph.SparseGraph
 import java.awt.Dimension
+import java.awt.event.ActionEvent
 import javax.swing.border.EtchedBorder
 import edu.uci.ics.jung.algorithms.layout.AbstractLayout
 import edu.uci.ics.jung.algorithms.layout.SpringLayout
+import java.io.File
 
 class GraphWorker(method:String) extends Actor {
   var layoutMethod = method
@@ -38,8 +45,30 @@ class GraphWorker(method:String) extends Actor {
           
           val displayWindow = new JFrame("Sketch of a network found using layout: "+layoutMethod+" (fitness: "+rnn.getFitnessString+")")
           //
+          val bcolor = new Color(128,128,128)
           displayWindow.setPreferredSize(new Dimension(800,600))
-          
+          val jmenubar = new JMenuBar
+          jmenubar.setBackground(bcolor)
+          val jmenu = new JMenu("File")
+          object saveRNNAction extends AbstractAction("Save (as XML)") {
+            def actionPerformed(e:ActionEvent) : Unit = {
+              val chooser = new JFileChooser
+              val rval = chooser.showSaveDialog(displayWindow)
+              if (rval == JFileChooser.APPROVE_OPTION) {
+                val fname = chooser.getSelectedFile
+                if (fname.getName.endsWith(".xml")) {
+                  rnn.write(fname)
+                }
+                else {
+                  rnn.write(new File(fname.getPath+".xml"))
+                }
+              }
+            }
+          }
+          val save = new JMenuItem(saveRNNAction)
+          jmenubar.add(jmenu)
+          jmenu.add(save)
+          displayWindow.setJMenuBar(jmenubar)
           /*
           val displayPanel = new DisplayPanel(img)
           displayPanel.setBorder(new EtchedBorder)
@@ -52,7 +81,7 @@ class GraphWorker(method:String) extends Actor {
           val defMouse = new DefaultModalGraphMouse
           defMouse.setMode(ModalGraphMouse.Mode.TRANSFORMING)
           vServer.setGraphMouse(defMouse)
-          vServer.setBackground(new Color(128,128,128))
+          vServer.setBackground(bcolor)
           displayWindow.setContentPane(vServer)//displayPanel)
           displayWindow.pack()
           displayWindow.setVisible(true)

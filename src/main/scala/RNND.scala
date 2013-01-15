@@ -16,6 +16,9 @@ import neurogenesis.util.Distribution
 import neurogenesis.util.CComplexityMeasure
 import neurogenesis.util.Constant
 import libsvm._
+import java.io.File
+import java.io.FileWriter
+import scala.xml._
 
 class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Array[OutCellD]) extends EvolvableD {
   val in = inputLayer.length
@@ -484,7 +487,20 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val res = <RNND><Fitness>{fitness}</Fitness>{ip}{bp}{op}</RNND>
     res
   }
-
+  def write(f:File) : Boolean = {
+    if (f.exists) {
+      false
+    }
+    else {
+      val rnnxml = toXML
+      val fw = new FileWriter(f)
+      //println(tag.head)
+      scala.xml.XML.write(fw,rnnxml.head,"UTF-8",true,null)
+      rnnxml.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
+      fw.close     
+      true
+    }
+  }
   
   // In order to display the network using JUNG we need to transorm it to its SparseGraph representation
   def toGraph :  SparseGraph[Int,String] = {

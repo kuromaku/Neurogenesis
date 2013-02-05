@@ -8,7 +8,7 @@ import scala.xml._
 /*A simple input cell which can have both forward and recurrent connections
  * 
  */
-class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
+class InCellD(fConns:AbstractNeuralconnections,rConns:AbstractNeuralconnections) extends EvolvableD {
   var stim = 0d
   var activation = 0d
   def activate(actFun: Function1[Double,Double]) : Double = {activation = actFun(stim); activation }
@@ -31,10 +31,10 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def equals(other:InCellD) : Boolean = {
     (fConns == other.getForward && rConns == other.getRecurrent)
   }
-  def getForward : NeuralConnsD = fConns
-  def getRecurrent : NeuralConnsD = rConns
+  def getForward : AbstractNeuralconnections = fConns
+  def getRecurrent : AbstractNeuralconnections = rConns
   def getActivation : Double = activation
-  def gatherConnections : List[NeuralConnsD] = {
+  def gatherConnections : List[AbstractNeuralconnections] = {
     List(fConns,rConns)
   }
   override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
@@ -54,12 +54,14 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def reset : Unit = { stim = 0; activation = 0 }
   def stimulate(s:Double) : Unit = { stim += s }
   
+  /*
   def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double) : InCellD = {
     //val cops = implicitly[InCellD]
     val f = fConns.combine(e2.getForward,dist,mutP,flipP)
     val r = rConns.combine(e2.getRecurrent,dist,mutP,flipP)
     new InCellD(f,r)
   }
+  */
   def combine(e2: InCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : InCellD = {
     //val cops = implicitly[InCellD]
     val f = fConns.combine(e2.getForward,dist,mutP,flipP,rnd,discardRate)
@@ -93,6 +95,7 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   def toXML : Elem = {
     val fwd = <Forward>{fConns.toXML}</Forward>
     val rec = <Recurrent>{rConns.toXML}</Recurrent>
+    //val ctype = <CType>{if (rConns.isInstanceOf[RigidNeuralConnections]) "Rigid" else "Basic"}</CType>
     val e = <InCellD>{fwd}{rec}</InCellD>
     e
   }
@@ -101,25 +104,36 @@ class InCellD(fConns:NeuralConnsD,rConns:NeuralConnsD) extends EvolvableD {
   override def toString : String = "<InCellD><Forward>"+fConns+"</Forward><Recurrent>\n"+rConns+"</Recurrent></InCellD>"
 }
 object InCellD {
-  def fromXML(elem:Elem) : InCellD = {
+  def fromXML(elem:Elem,maxWeight:Double,ctype:String) : InCellD = {
     val fwd = elem \\ "Forward"
     val rec = elem \\ "Recurrent"
-    val fc = new NeuralConnsD((fwd \\ "Min").text.toInt,(fwd \\ "Max").text.toInt)
-    val rc = new NeuralConnsD((rec \\ "Min").text.toInt,(rec \\ "Max").text.toInt)
+    if (ctype == "Basic") {
+    val fc = new NeuralConnsD((fwd \\ "Min").text.toInt,(fwd \\ "Max").text.toInt,maxWeight)
+    val rc = new NeuralConnsD((rec \\ "Min").text.toInt,(rec \\ "Max").text.toInt,maxWeight)
     val seq = XMLOperator.filterNodeSeq(fwd)
     for (s <- seq) {
-      fc.addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
+      fc.addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toByte)
     }
     val seq2 = XMLOperator.filterNodeSeq(rec)
     for (s <- seq2) {
-      rc.addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
+      rc.addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toByte)
     }
     new InCellD(fc,rc)
+    }
+    else {
+      val fc = RigidNeuralConnections.fromXML(fwd,maxWeight)
+      val rc = RigidNeuralConnections.fromXML(rec,maxWeight)
+      new InCellD(fc,rc)
+    }
   }
-  def fromXML(ns:NodeSeq) : InCellD = {
+  def fromXML(ns:NodeSeq,maxWeight:Double,ctype:String) : InCellD = {
     val fwd = ns \\ "Forward"
-    val fc = NeuralConnsD.fromXML(fwd)
-    val rc = NeuralConnsD.fromXML(ns \\ "Recurrent")
-    new InCellD(fc,rc)
+    if (ctype == "Basic") {
+      val fc = NeuralConnsD.fromXML(fwd,maxWeight)
+      val rc = NeuralConnsD.fromXML(ns \\ "Recurrent",maxWeight)
+      new InCellD(fc,rc)}
+    else {
+      new InCellD(RigidNeuralConnections.fromXML(fwd,maxWeight),RigidNeuralConnections.fromXML((ns \\ "Recurrent"),maxWeight))
+    }
   }
 }

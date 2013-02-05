@@ -460,6 +460,8 @@ class EvolverInterface extends SimpleSwingApplication {
   val repopulatorSelector = new ComboBox(Seq[String]("BasicRP","ComplexRP","RandRP","MutatorRP"))
   var startedBefore = false
   
+  var connectionType = "Basic"
+  val connectionTypeChooser = new ComboBox(Seq[String]("Basic","Rigid"))  
 
   
   def readConfig : Unit = {
@@ -678,6 +680,16 @@ class EvolverInterface extends SimpleSwingApplication {
       } catch {
         case _ => reportArea.append("Could not read which complexity measure should be used.\n")
       }
+      try {
+        val connType = (e \\ "ConnType").text
+        connType match {
+          case "Rigid" => connectionTypeChooser.item_=("Rigid")
+          case "Basic" => connectionTypeChooser.item_=("Basic")
+          case _ => reportArea.append("Read bad connection type from the configuration\n")
+        } 
+      } catch {
+          case _ => reportArea.append("Could not find the connection type in the configuration.\n")
+      }
     }
     else {
       reportArea.append("Could not read the config file.\n")
@@ -685,7 +697,7 @@ class EvolverInterface extends SimpleSwingApplication {
     }
   }
   def writeConfig : Boolean = {
-    val e1 = new Array[Elem](31)
+    val e1 = new Array[Elem](32)
     e1(0) = <DimensionX>{dimX}</DimensionX>
     e1(1) = <DimensionY>{dimY}</DimensionY>
     e1(10) = <NumThreads>{numThreads}</NumThreads>
@@ -717,6 +729,7 @@ class EvolverInterface extends SimpleSwingApplication {
     e1(28) = <MaxCells>{maxCells}</MaxCells>
     e1(29) = <WashoutTime>{washoutTime}</WashoutTime>
     e1(30) = <ComplexityMeasure>{measureChooser.selection.item}</ComplexityMeasure>
+    e1(31) = <ConnType>{connectionTypeChooser.item}</ConnType>
     //e1(15) =
     val xrep = <EvolverConfig>{for (i <- 0 until e1.length) yield e1(i)}</EvolverConfig>
     val f = new File(configPath)
@@ -793,8 +806,8 @@ class EvolverInterface extends SimpleSwingApplication {
       
       contents += new Label("CMeasure:")
       contents += measureChooser
-      contents += new Label("")
-      contents += new Label("")
+      contents += new Label("ConnType:")
+      contents += connectionTypeChooser
       contents += new Label("")
       contents += configurationReady
     }
@@ -874,22 +887,12 @@ class EvolverInterface extends SimpleSwingApplication {
       allNets(i).init
       allEvolvers(i) = new NeuralEvolver(allPops(i),allNets(i),supervisor,supervisor.getReporter,rnd,discardRate)
       */
-      allEvolvers(i) = NeuralEvolver.makeEvolver(initialBlocks,initialCells,dims(0),dims(1),popSize,initialDistScale,supervisor,supervisor.getReporter,discardRate)
-      allEvolvers(i).addDLists(dworker.getDLists)
-      if (modes.indexOf(modeSelector.selection.item) >= 3) {
-        allEvolvers(i).initSVMLearner(dworker.getCols(0),regressionMode)//dworker.getNodes(1),
-      }
-      allEvolvers(i).setActFun(actFun)
-      allEvolvers(i).setBurstFreq(burstMutationFreq)
-      allEvolvers(i).setPrintInfo(printInfo)
-      allEvolvers(i).setUseFullDataFeed(useFullDataFeed)
-      allEvolvers(i).setEvoMode(modes.indexOf(modeSelector.selection.item))
+      allEvolvers(i) = NeuralEvolver.makeEvolver(initialBlocks,initialCells,dims(0),dims(1),popSize,initialDistScale,supervisor,supervisor.getReporter,connectionTypeChooser.item,discardRate)
+      configureEvolver(allEvolvers(i))
+
       allEvolvers(i).setRepopulator(populator1)
       allEvolvers(i).setNetRepopulator(populator2)
-      allEvolvers(i).setSpawningFreq(spawnFreq)
-      allEvolvers(i).setSchedule(schedule.makeClone)
-      allEvolvers(i).setSavePath(saveDirectory)
-      allEvolvers(i).setSaveFreq(autoSave)
+
       
       allEvolvers(i).start
       supervisor.addEvolver(i,allEvolvers(i))
@@ -941,21 +944,9 @@ class EvolverInterface extends SimpleSwingApplication {
       dworker.initSVM
     }
     for (e <- evolvers) {
-      e.addDLists(dworker.getDLists)
-      e.setActFun(actFun)
-      e.setBurstFreq(burstMutationFreq)
-      e.setPrintInfo(printInfo)
-      e.setEvoMode(modes.indexOf(modeSelector.selection.item))
-      if (modes.indexOf(modeSelector.selection.item) >= 3) {
-        e.initSVMLearner(dworker.getCols(0),regressionMode)//dworker.getNodes(1),
-      }
-      e.setUseFullDataFeed(useFullDataFeed)
       e.setRepopulator(populator1)
       e.setNetRepopulator(populator2)
-      e.setSpawningFreq(spawnFreq)
-      e.setSchedule(schedule.makeClone)
-      e.setSavePath(saveDirectory)
-      e.setSaveFreq(autoSave)
+      configureEvolver(e)
       e.start
       supervisor.addEvolver(id,e)
       id += 1
@@ -963,6 +954,22 @@ class EvolverInterface extends SimpleSwingApplication {
     //supervisor.setThreads(numThreads)
     supervisor.start
     supervisor ! "Start"
+    
+  }
+  def configureEvolver(e:NeuralEvolver) : Unit = {
+    e.addDLists(dworker.getDLists)
+    e.setActFun(actFun)
+    e.setBurstFreq(burstMutationFreq)
+    e.setPrintInfo(printInfo)
+    e.setEvoMode(modes.indexOf(modeSelector.selection.item)) 
+    if (modes.indexOf(modeSelector.selection.item) >= 3) {
+      e.initSVMLearner(dworker.getCols(0),regressionMode)//dworker.getNodes(1),
+    }
+    e.setUseFullDataFeed(useFullDataFeed)
+    e.setSpawningFreq(spawnFreq)
+    e.setSchedule(schedule.makeClone)
+    e.setSavePath(saveDirectory)
+    e.setSaveFreq(autoSave)    
     
   }
   def init : Unit = {
@@ -1093,7 +1100,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	    configurationReady,calculateValidationError,runSVMRegression,scheduleChooser.selection,
 	    writeBestNet,displayNet,runLeastSquares,clearReportArea,functionChooser.selection,
 	    makePredictions,clearData,repopulatorSelector,writeBestPopulation,measureChooser.selection,
-	    debugRun,restartEvolution,lengthSlider)
+	    debugRun,restartEvolution,lengthSlider,connectionTypeChooser.selection)
 	//listenTo(configurationReady,saveDirField,maxStepsField,functionChooser)
 	//listenTo(writeBestNet,displayNet,modeSelector)
 	var networksDrawn = 0
@@ -1326,6 +1333,9 @@ class EvolverInterface extends SimpleSwingApplication {
 	    else {
 	      reportArea.append("Did not write the networks because a previous save existed with the same name.\n")
 	    }
+	  }
+	  case SelectionChanged(`connectionTypeChooser`) => {
+	    reportArea.append("Connection type is now: "+connectionTypeChooser.item+"\n")
 	  }
 	  case SelectionChanged(`functionChooser`) => {
 	    val s = functionChooser.selection.item

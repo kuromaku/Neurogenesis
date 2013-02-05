@@ -7,7 +7,7 @@ class BasicMeasure(bias:Double) extends CComplexityMeasure {
   def calculateComplexity(c: NeuralConnsD): Double = { 
     var sum = 0.0
     for ((t,(w,b)) <- c.getConns2) {
-      if (b) {
+      if (b != 0) {
         sum += math.abs(w) 
       }
     }

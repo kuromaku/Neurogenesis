@@ -11,6 +11,7 @@ import scala.swing.TextArea
 import neurogenesis.util.XMLOperator
 
 object NeuralOps {
+  /*
   def fromXML(elem:Elem) : InCellD = {
     val fwd = elem \\ "Forward"
     val rec = elem \\ "Recurrent"
@@ -41,6 +42,8 @@ object NeuralOps {
     }
     new InCellD(fc,rc)
   }
+  * 
+  */
   def array2Matrix2(a:Array[Array[Double]]) : DenseMatrix[Double] = {
     val mDat = new Array[Double](a.length*a(0).length)
     val a0l = a(0).length

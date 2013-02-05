@@ -119,7 +119,11 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           if (printInfo) {
             val fRep = bestFitness.toString
             if (fRep.length > 7) {
-              reporter ! ProgressMessage("Latest reported fitness value: "+fRep.substring(0,7)+" (id: "+from+")")
+              if (bestFitness > 0.0001)
+                reporter ! ProgressMessage("Latest reported fitness value: "+fRep.substring(0,7)+" (id: "+from+")")
+              else {
+                reporter ! ProgressMessage("Latest reported fitness value: < 0.0001 (id: "+from+")")
+              }
             }
             else {
               reporter ! ProgressMessage("Latest reported fitness value: "+fRep+" (id: "+from+")")

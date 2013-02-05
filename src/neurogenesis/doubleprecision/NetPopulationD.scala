@@ -40,7 +40,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     for (i <- 0 until netPop.length) {
       np(i) = netPop(i).burstMutate(0.1,cauchy,rnd,cPop)
     }
-    val cp = new CellPopulationD(1,1,1,1)
+    val cp = new CellPopulationD(1,1,1,1) //this might cause problems elsewhere..
     val np2 = new NetPopulationD(cp)
     np2.init(np)
     np2
@@ -101,6 +101,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     }
     a
   }
+  /*
   //The following functionality is becoming obsolete as it is being moved to NetRepopulator
   def repopulate(dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast) : Unit = {
     sortPop
@@ -124,6 +125,7 @@ class NetPopulationD(cPop:CellPopulationD) {
     }
     sorted = false
   }
+  */
   def repopulate(nPop:CellPopulationD) : Unit = {
     val inPerms = permutations(nPop.getSize,nPop.getIn)
     val blockPerms = permutations(nPop.getSize,nPop.getBlocks)

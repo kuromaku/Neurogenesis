@@ -27,7 +27,20 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   def getStateLength : Int = { blockPop(0)(0).getSize + outputs }
   def getNetworkSize : Int = { blockPop(0)(0).getSize*blocks + inputs + outputs}
   var connProb = 0.5
+  var connType = "Basic"
+  def setConnectionType(s:String) : Unit = { connType = s }
+  var maxW = 3.0d
+  def getMaxWeight : Double = maxW
   
+  def createConnections(min:Int,max:Int,mval:Double,cnum:Int,crnd:MersenneTwisterFast) : AbstractNeuralconnections = {
+    var nc: AbstractNeuralconnections = null
+    connType match {
+      case "Rigid" => nc = new RigidNeuralConnections(min,max,mval)
+      case "Basic" => nc = new NeuralConnsD(min,max,mval)
+    }
+    nc.addRandomConnections(cnum,crnd)
+    nc
+  }
   def init(scale:Double,outBias:Double,rnd:MersenneTwisterFast,numFor:Int=5,numRec:Int=3) : Unit = {
     val cDist = new CauchyDistribution(scale)
     val mid = inputs + blocks*4
@@ -37,11 +50,10 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     for (i <- 0.until(inputs)) {
       inputPop(i) = new Array[InCellD](popSize)
       for (j <- 0.until(popSize)) {
-        val fc = new NeuralConnsD(inputs,total)
-        fc.addRandomConnections(numFor,rnd)
-        val rc = new NeuralConnsD(0,total)
-        if (numRec > 1) rc.addRandomConnections(numRec-1,rnd)
-        else rc.addRandomConnections(numRec,rnd)
+        val fc = createConnections(inputs,total,maxW,numFor,rnd) //new NeuralConnsD(inputs,total)
+        //fc.addRandomConnections(numFor,rnd)
+        val rc = createConnections(0,total,maxW,numRec,rnd)//new NeuralConnsD(0,total)
+        
         inputPop(i)(j) = new InCellD(fc,rc)
         inputPop(i)(j).setID(cellCounter)
         add2Counter
@@ -52,13 +64,12 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       val memBias = 1.0
       val mCells = if (blocks == 1) 2 else 1
       for (j <- 0.until(popSize)) {
-        val fc = new Array[NeuralConnsD](mCells)
-        val rc = new Array[NeuralConnsD](mCells)
+        val fc = new Array[AbstractNeuralconnections](mCells)
+        val rc = new Array[AbstractNeuralconnections](mCells)
         for (k <- 0 until mCells) {
-          fc(k) = new NeuralConnsD(mid,total)
-          fc(k).addRandomConnections(numFor-blocks,rnd)
-          rc(k) = new NeuralConnsD(0,total)
-          rc(k).addRandomConnections(numRec,rnd)
+          fc(k) = createConnections(mid,total,maxW,numFor-blocks,rnd)//new NeuralConnsD(mid,total)
+          //fc(k).addRandomConnections(numFor-blocks,rnd)
+          rc(k) = createConnections(0,total,maxW,numRec,rnd)//new NeuralConnsD(0,total)
         }
         blockPop(i)(j) = new CellBlockD(memBias,fc,rc)
         blockPop(i)(j).setID(cellCounter)
@@ -68,9 +79,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     for (i <- 0.until(outputs)) {
       outputPop(i) = new Array[OutCellD](popSize)
       for (j <- 0.until(popSize)) {
-        val rc = new NeuralConnsD(0,total)
-        rc.addRandomConnections(numRec,rnd)
-        outputPop(i)(j) = new OutCellD(outBias,rc)
+        //val rc = new NeuralConnsD(0,total)
+        //rc.addRandomConnections(numRec,rnd)
+        outputPop(i)(j) = new OutCellD(outBias,createConnections(0,total,maxW,numRec,rnd))
         outputPop(i)(j).setID(cellCounter)
         cellCounter += 1
       }
@@ -230,14 +241,14 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
       nB(blocks) = new Array[CellBlockD](popSize)
       for (i <- 0 until popSize) {
-        val nf = new Array[NeuralConnsD](mC)
-        val nr = new Array[NeuralConnsD](mC)
+        val nf = new Array[AbstractNeuralconnections](mC)
+        val nr = new Array[AbstractNeuralconnections](mC)
         val mid = inputs + (blocks+1)*(mC+3)
         for (k <- 0 until mC) {
-          nf(k) = new NeuralConnsD(mid,mid+outputs)
-          nf(k).addRandomConnections(3,rnd)
-          nr(k) = new NeuralConnsD(0,mid+outputs)
-          nr(k).addRandomConnections(2,rnd)
+          nf(k) = createConnections(mid,mid+outputs,maxW,3,rnd)//new NeuralConnsD(mid,mid+outputs)
+          //nf(k).addRandomConnections(3,rnd)
+          nr(k) = createConnections(0,mid+outputs,maxW,2,rnd)//new NeuralConnsD(0,mid+outputs)
+          //nr(k).addRandomConnections(2,rnd)
         }
         nB(blocks)(i) = new CellBlockD(blockPop(0)(0).getBias,nf,nr)
       }
@@ -251,6 +262,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         }
       }
       cPop.replaceCells(nIn,nB,nOut)
+      cPop.setConnectionType(connType)
       //println(addBlock+"\n"+cPop)
       cPop
     }
@@ -294,6 +306,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         }
       }
       cPop.replaceCells(nIn,nB,nOut)
+      cPop.setConnectionType(connType)
       cPop
     }
   }
@@ -373,8 +386,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   }
   */
   /*Produces the next generation of this CellPopulation
-   * 
-   */
+   *Somewhat obsolete after the introduction of Repopulator classes.
+  
   def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:MersenneTwisterFast) : Unit = {
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
@@ -438,7 +451,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           nextGen(j) = outputPop(i)(l).burstMutate(0.3,dist,rnd)
         }
         else {
-          nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb)
+          nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb,rnd)
         }
         nextGen(j).setID(cellCounter)
         cellCounter += 1
@@ -447,6 +460,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     }
     
   }
+  */
+  
+  /*
   def repopulate(dist:Distribution,schedule:CoolingSchedule,rnd:MersenneTwisterFast,cutRatio:Double) : Unit = {
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
@@ -516,7 +532,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
           nextGen(j) = outputPop(i)(l).burstMutate(0.3,dist,rnd)
         }
         else {
-          nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb)
+          nextGen(j) = outputPop(i)(k).combine(outputPop(i)(l),dist,mutProb,flipProb,rnd)
         }
         nextGen(j).setID(cellCounter)
         cellCounter += 1
@@ -530,6 +546,8 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     }
     
   }
+  
+  */
   /*
   def setCells(inC:Array[Array[InCellD]],cb:Array[Array[CellBlockD]],outC:Array[Array[OutCellD]]) : Unit = {
     inputPop = inC
@@ -623,7 +641,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     val ip = new Elem(null,"InputPopulation",null,tscope,inpopElems: _*)
     val cp = new Elem(null,"BlockPopulation",null,tscope,blockElems: _*)
     val op = new Elem(null,"OutputPopulation",null,tscope,outpopElems: _*)
-    val xml = <CellPopulation><Inputs>{inputs}</Inputs><Blocks>{blocks}</Blocks><Outputs>{outputs}</Outputs><SubpopSize>{popSize}</SubpopSize>{ip}{cp}{op}</CellPopulation>
+    val xml = <CellPopulation><ConnType>{connType}</ConnType><Inputs>{inputs}</Inputs><Blocks>{blocks}</Blocks><Outputs>{outputs}</Outputs><SubpopSize>{popSize}</SubpopSize>{ip}{cp}{op}</CellPopulation>
     xml
   }
 
@@ -684,6 +702,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
     }
   }
+  /*Mixes cells from separate but compatible populations.
+   *Equivalent to race mixing which usually seems to work badly.
+   */
   def mixPopulations(pop2:CellPopulationD,mixProb:Double) : Unit = {
     val inCells2 = pop2.getInPop
     for (i <- 0 until inputs) {
@@ -691,7 +712,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         if (scala.math.random < mixProb) {
           val aux = inCells2(i)(j)
           inCells2(i)(j) = inputPop(i)(j).makeClone
+          inCells2(i)(j).setID(pop2.updateCounter)
           inputPop(i)(j) = aux
+          inputPop(i)(j).setID(updateCounter)
         }
       }
     }
@@ -701,7 +724,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         if (scala.math.random < mixProb) {
           val aux = blocks2(i)(j)
           blocks2(i)(j) = blockPop(i)(j).makeClone
+          blocks2(i)(j).setID(pop2.updateCounter)
           blockPop(i)(j) = aux
+          blockPop(i)(j).setID(updateCounter)
         }
       }
     }
@@ -711,26 +736,24 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         if (scala.math.random < mixProb) {
           val aux = outCells2(i)(j)
           outCells2(i)(j) = outputPop(i)(j).makeClone
+          outCells2(i)(j).setID(pop2.updateCounter)
           outputPop(i)(j) = aux
+          outputPop(i)(j).setID(updateCounter)
         }
       }
     }
   }
-  /*
-  def readOutCell(xml:Elem) : OutCellD = {
-    val bias = xml \\ "Bias"
-    
-  }
-  */
-  //def readPopulation(popString:File) : CellPopulation =
 }
 object CellPopulationD {
   def fromXML(ns:NodeSeq) : CellPopulationD = {
+    val connType = (ns \\ "ConnType").text
     val ip = ns \\ "InputPopulation"
+    
     val inputs2 = (ns \\ "Inputs").text.toInt
     val blocks2 = (ns \\ "Blocks").text.toInt
     val outputs2 = (ns \\ "Outputs").text.toInt
     val subpop = (ns \\ "SubpopSize").text.toInt
+    val maxW = (ns \\ "MaxWeight").text.toDouble
     //println("OutputNum:"+outputs2)
     //println("SubpopSize:"+subpop)
     //val il = XMLOperator.customFilter(ip,"InCellD")
@@ -741,7 +764,7 @@ object CellPopulationD {
     var j = 0
     inPop(0) = new Array[InCellD](subpop)
     for (ic <- il) {
-      inPop(i)(j) = InCellD.fromXML(ic)
+      inPop(i)(j) = InCellD.fromXML(ic,maxW,connType)
       //println(inPop(i)(j).toXML.toString)
       j += 1
       if (j == subpop) {
@@ -758,8 +781,9 @@ object CellPopulationD {
     j = 0
     val blPop = new Array[Array[CellBlockD]](blocks2)
     blPop(0) = new Array[CellBlockD](subpop)
+    //implicit def intToNumericInt(val i : Int)(implicit n : IntIsIntegral) = n.fromInt(i)
     for (b <- bp) {
-      blPop(i)(j) = CellBlockD.fromXML(b)
+      blPop(i)(j) = CellBlockD.fromXML(b,maxW,connType)(Numeric.IntIsIntegral)
       j +=1
       if (j == subpop) {
         i += 1
@@ -775,7 +799,7 @@ object CellPopulationD {
     val opPop = new Array[Array[OutCellD]](outputs2)
     opPop(0) = new Array[OutCellD](subpop)
     for (o <- op) {
-      opPop(i)(j) = OutCellD.fromXML(o)
+      opPop(i)(j) = OutCellD.fromXML(o,maxW,connType)
       //println("i:"+i+" j:"+j+"\n"+opPop(i)(j).toXML)
       j += 1
       if (j == subpop) {
@@ -788,6 +812,7 @@ object CellPopulationD {
     }
     val cp = new CellPopulationD(inputs2,blocks2,outputs2,subpop)
     cp.zeroInit
+    cp.setConnectionType(connType)
     cp.replaceCells(inPop,blPop,opPop)
     //println(cp.toXML)
     cp

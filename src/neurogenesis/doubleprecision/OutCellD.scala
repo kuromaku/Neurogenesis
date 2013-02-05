@@ -8,7 +8,7 @@ import scala.xml.NodeSeq
 import neurogenesis.util.Distribution
 import neurogenesis.util.CComplexityMeasure
 
-class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
+class OutCellD(bias:Double,rConns:AbstractNeuralconnections) extends EvolvableD {
   var stim: Double = 0
   var activation : Double = 0
   def activate(actFun: Function1[Double,Double]) : Double = { activation = actFun(stim+bias); activation }
@@ -26,16 +26,18 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
     cpop.add2Counter
     out2
   }
-  def getRecurrent : NeuralConnsD = rConns
+  def getRecurrent : AbstractNeuralconnections = rConns
   def getActivation : Double = activation
   def getBias : Double = bias
   //def setFitness(f:Double) : Unit = { fitness = f }
   def stimulate(s:Double) : Unit = { stim += s }
   def reset : Unit = { stim = 0; activation = 0 }
+  /*
   def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double) : OutCellD = {
     val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP)
     new OutCellD(bias,r)
   }
+  */
   def combine(nc2:OutCellD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : OutCellD = {
     val r = rConns.combine(nc2.getRecurrent,dist,mutP,flipP,rnd,discardRate)
     new OutCellD(bias,r)
@@ -62,7 +64,7 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
   def equals(other:OutCellD) : Boolean = {
     (bias == other.getBias && rConns == other.getRecurrent)
   }
-  def gatherConnections : List[NeuralConnsD] = { List(rConns) }
+  def gatherConnections : List[AbstractNeuralconnections] = { List(rConns) }
   override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
     val c = measure.calculateComplexity(List(rConns),cBias)
     if (c != 0.0) {
@@ -81,22 +83,34 @@ class OutCellD(bias:Double,rConns:NeuralConnsD) extends EvolvableD {
    */
   def toXML : Elem = {
     val b = <Bias>{bias}</Bias>
+    //val ctype = <CType>{if (rConns.isInstanceOf[RigidNeuralConnections]) "Rigid" else "Basic"}</CType>
+    //{ctype}
     val e = <OutCellD>{b}{rConns.toXML}</OutCellD>
     e
   }
 
   override def toString : String = "<OutCellD>"+rConns+"\n</OutCellD>"
+  //def this(e:Elem) = this((e \\ "Bias").text.toDouble,NeuralConnsD.fromXML((e \\ "NeuralConnsD")))
 }
 object OutCellD {
-  def fromXML(e:Elem) : OutCellD = {
+  def fromXML(e:Elem,maxVal:Double,ctype:String) : OutCellD = {
     val bs = (e \\ "Bias").text.toDouble
-    val cxml = (e \\ "NeuralConnsD")
-    val nc = NeuralConnsD.fromXML(cxml)
-    new OutCellD(bs,nc)
+    
+    val ctype = (e \\ "CType").text
+    var cnn: AbstractNeuralconnections = null
+    ctype match {
+      case "Rigid" => cnn = RigidNeuralConnections.fromXML((e \\ "RNNConns"),maxVal)
+      case "Basic" => cnn = NeuralConnsD.fromXML((e \\ "NeuralConnsD"),maxVal)
+      case _ => //add more cases when necessary
+    }
+    new OutCellD(bs,cnn)
   }
-  def fromXML(ns:NodeSeq) : OutCellD = {
+  def fromXML(ns:NodeSeq,maxVal:Double,ctype:String) : OutCellD = {
     val bs = (ns \\ "Bias").text.toDouble
-    val rc = (ns \\ "NeuralConnsD")
-    new OutCellD(bs,NeuralConnsD.fromXML(rc))
+    ctype match {
+      case "Rigid" => new OutCellD(bs,RigidNeuralConnections.fromXML((ns \\ "RNNConns"),maxVal))
+      case "Basic" => new OutCellD(bs,NeuralConnsD.fromXML((ns \\ "NeuralConnsD"),maxVal))
+      case _ => new OutCellD(bs,null)
+    }
   }
 }

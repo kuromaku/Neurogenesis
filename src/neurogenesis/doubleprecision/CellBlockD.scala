@@ -5,8 +5,10 @@ import scala.xml._
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
 import neurogenesis.util.CComplexityMeasure
+import scala.math.Numeric._
 
-class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD]) extends EvolvableD {
+class CellBlockD(b:Double,fConns: Array[AbstractNeuralconnections],rConns: Array[AbstractNeuralconnections]) extends EvolvableD {
+
  val memState = new Array[Double](fConns.length)
  val stims = new Array[Double](fConns.length+3)
  val gateBits = new Array[Boolean](3)
@@ -47,8 +49,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  def getBias : Double = bias
  def getSize : Int = stims.length
  def getNumOfCells : Int = memState.length
- def getForward(idx:Int) : NeuralConnsD = fConns(idx)
- def getRecurrent(idx:Int) : NeuralConnsD = rConns(idx)
+ def getForward(idx:Int) : AbstractNeuralconnections = fConns(idx)
+ def getRecurrent(idx:Int) : AbstractNeuralconnections = rConns(idx)
  def flipBits(p:Double,rnd:MersenneTwisterFast) : Unit = for (i <- 0 until 3) { if (rnd.nextDouble < p) gateBits(i) = !gateBits(i) }
  def addRandomConnections(num:Int,rnd:MersenneTwisterFast) : Int = {
    var sum = 0
@@ -65,8 +67,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    sum
  }
  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : CellBlockD = {
-   val fc = new Array[NeuralConnsD](fConns.length)
-   val rc = new Array[NeuralConnsD](rConns.length)
+   val fc = new Array[AbstractNeuralconnections](fConns.length)
+   val rc = new Array[AbstractNeuralconnections](rConns.length)
    for (i <- 0 until fConns.length) {
      fc(i) = fConns(i).burstMutate(prob,dist,rnd)
      rc(i) = rConns(i).burstMutate(prob,dist,rnd)
@@ -76,8 +78,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    return b2
  }
  def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast,cpop:CellPopulationD) : CellBlockD = {
-   val fc = new Array[NeuralConnsD](fConns.length)
-   val rc = new Array[NeuralConnsD](rConns.length)
+   val fc = new Array[AbstractNeuralconnections](fConns.length)
+   val rc = new Array[AbstractNeuralconnections](rConns.length)
    for (i <- 0 until fConns.length) {
      fc(i) = fConns(i).burstMutate(prob,dist,rnd)
      rc(i) = rConns(i).burstMutate(prob,dist,rnd)
@@ -87,19 +89,21 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    b2.setID(cpop.getCounter)
    cpop.add2Counter
    return b2
- } 
+ }
+ /*
  def combine(block2:CellBlockD,dist:Distribution,mutP:Double,flipP:Double) : CellBlockD = {
-   var f = new Array[NeuralConnsD](memState.length)
-   var r = new Array[NeuralConnsD](memState.length)
+   var f = new Array[AbstractNeuralconnections](memState.length)
+   var r = new Array[AbstractNeuralconnections](memState.length)
    for (i <- 0 until f.length) {
      f(i) = fConns(i).combine(block2.getForward(i),dist,mutP,flipP)
      r(i) = rConns(i).combine(block2.getRecurrent(i),dist,mutP,flipP)
    }
    new CellBlockD(bias,f,r)
  }
+ */
  def combine(block2:CellBlockD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double=0.75) : CellBlockD = {
-   var f = new Array[NeuralConnsD](memState.length)
-   var r = new Array[NeuralConnsD](memState.length)
+   var f = new Array[AbstractNeuralconnections](memState.length)
+   var r = new Array[AbstractNeuralconnections](memState.length)
    for (i <- 0 until f.length) {
      f(i) = fConns(i).combine(block2.getForward(i),dist,mutP,flipP,rnd,discardRate)
      r(i) = rConns(i).combine(block2.getRecurrent(i),dist,mutP,flipP,rnd,discardRate)
@@ -120,8 +124,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    b2
  }
  def combine(block2:CellBlockD,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double,cellpop:CellPopulationD) : CellBlockD = {
-   var f = new Array[NeuralConnsD](memState.length)
-   var r = new Array[NeuralConnsD](memState.length)
+   var f = new Array[AbstractNeuralconnections](memState.length)
+   var r = new Array[AbstractNeuralconnections](memState.length)
    for (i <- 0 until f.length) {
      f(i) = fConns(i).combine(block2.getForward(i),dist,mutP,flipP,rnd,discardRate)
      r(i) = rConns(i).combine(block2.getRecurrent(i),dist,mutP,flipP,rnd,discardRate)
@@ -145,8 +149,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  }
  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : CellBlockD = {
    if (addBlock) {
-     val ncf = new Array[NeuralConnsD](memState.length)
-     val ncr = new Array[NeuralConnsD](memState.length)
+     val ncf = new Array[AbstractNeuralconnections](memState.length)
+     val ncr = new Array[AbstractNeuralconnections](memState.length)
      
      for (i <- 0 until fConns.length) {
        ncf(i) = fConns(i).complexify(in,blocks,memCells,out,addBlock,rnd)
@@ -159,8 +163,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
      b2
    }
    else {
-     val ncf = new Array[NeuralConnsD](memState.length+1)
-     val ncr = new Array[NeuralConnsD](memState.length+1)
+     val ncf = new Array[AbstractNeuralconnections](memState.length+1)
+     val ncr = new Array[AbstractNeuralconnections](memState.length+1)
      //var i = 0
      for (i <- 0 until fConns.length) {
        
@@ -172,7 +176,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
      val i = fConns.length
      if (i > 1) {
        val ridx = rnd.nextInt(i-1)
-       ncf(i) = ncf(ridx).makeClone//using this trick because we can't easily create a new NeuralConnsD(mid,mid+out)
+       ncf(i) = ncf(ridx).makeClone//using this trick because we can't easily create a new AbstractNeuralconnections(mid,mid+out)
        ncf(i).setMin(mid)
        ncf(i).setMax(mid+out)
        val ridx2 = rnd.nextInt(i-1)
@@ -180,7 +184,7 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
        ncr(i).setMax(mid+out)
      }
      else {
-       ncf(i) = ncf(0).makeClone//using this trick because we can't easily create a new NeuralConnsD(mid,mid+out)
+       ncf(i) = ncf(0).makeClone//using this trick because we can't easily create a new AbstractNeuralconnections(mid,mid+out)
        ncf(i).setMin(mid)
        ncf(i).setMax(mid+out)
        ncr(i) = rConns(0).makeClone//same as above
@@ -208,8 +212,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    }
    d
  }
- def gatherConnections : List[NeuralConnsD] = {
-   var clist = List[NeuralConnsD]()
+ def gatherConnections : List[AbstractNeuralconnections] = {
+   var clist = List[AbstractNeuralconnections]()
    for (i <- 0 until fConns.length) {
      clist = clist.+:(fConns(i))
      clist = clist.+:(rConns(i))
@@ -239,8 +243,8 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
    true
  }
  def makeClone : CellBlockD = {
-   val f = new Array[NeuralConnsD](fConns.length)
-   val r = new Array[NeuralConnsD](rConns.length)
+   val f = new Array[AbstractNeuralconnections](fConns.length)
+   val r = new Array[AbstractNeuralconnections](rConns.length)
    for (i <- 0 until f.length) {
      f(i) = fConns(i).makeClone
      r(i) = rConns(i).makeClone
@@ -331,13 +335,16 @@ class CellBlockD(b:Double,fConns: Array[NeuralConnsD],rConns: Array[NeuralConnsD
  }
 }
 object CellBlockD {
-  def fromXML(e:Elem) : CellBlockD = {
+  
+  
+  def fromXML[T:Numeric](e:Elem,maxVal:Double,ctype:String) : CellBlockD = {
+   val numerics = implicitly[Numeric[T]]
    val num = (e \\ "MemCells").text.toInt
    val rbias = (e \\ "Bias").text.toDouble
    val fwd = (e \\ "Forward")
    val rec = (e \\ "Recurrent")
-   val f = new Array[NeuralConnsD](num)
-   val r = new Array[NeuralConnsD](num)
+   val f = new Array[AbstractNeuralconnections](num)
+   val r = new Array[AbstractNeuralconnections](num)
    val minF = (fwd \\ "Min").apply(0).text.toInt
    val maxF = (fwd \\ "Max").apply(0).text.toInt
    val minR = (rec \\ "Min").apply(0).text.toInt
@@ -349,30 +356,51 @@ object CellBlockD {
    for (i <- 0 until num) {
      val sf = "f"+i
      val sr = "r"+i
-     f(i) = new NeuralConnsD(minF,maxF)
-     r(i) = new NeuralConnsD(minR,maxR)
      val fi = (fwd \\ sf)
      val ri = (rec \\ sr)
-     val seq = op.filterNodeSeq(fi)
-     for (s <- seq) {
-       f(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
+     val seq = op.filterNodeSeq(fi)    
+     val seq2 = op.filterNodeSeq(ri)     
+     if (ctype == "Basic") {
+       f(i) = new NeuralConnsD(minF,maxF,maxVal)
+       r(i) = new NeuralConnsD(minR,maxR,maxVal)
+       
+       for (s <- seq) {
+         val b0 = (s \ "expr").text.toBoolean
+         f(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,if (b0) numerics.one else numerics.zero)
+       }
+       for (s <- seq2) {
+         val b0 = (s \ "expr").text.toBoolean
+         r(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,if (b0) numerics.one else numerics.zero)
+       }
      }
-     val seq2 = op.filterNodeSeq(ri)
-     for (s <- seq2) {
-       r(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
+     else if (ctype == "Rigid") {
+       f(i) = new RigidNeuralConnections(minF,maxF,maxVal)
+       r(i) = new RigidNeuralConnections(minF,maxF,maxVal)
+       for (s <- seq) {
+         f(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toInt)
+       }   
+       for (s <- seq2) {
+         r(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toInt)
+       }   
      }
+     		
+
+
+
+
    }
    val c2 = new CellBlockD(rbias,f,r)
    c2.setBits(bitRep)
    return c2
  }
-  def fromXML(e:NodeSeq) : CellBlockD = {
+  def fromXML[T:Numeric](e:NodeSeq,maxVal:Double,ctype:String) : CellBlockD = {
+   val numerics = implicitly[Numeric[T]]
    val num = (e \\ "MemCells").text.toInt
    val rbias = (e \\ "Bias").text.toDouble
    val fwd = (e \\ "Forward")
    val rec = (e \\ "Recurrent")
-   val f = new Array[NeuralConnsD](num)
-   val r = new Array[NeuralConnsD](num)
+   val f = new Array[AbstractNeuralconnections](num)
+   val r = new Array[AbstractNeuralconnections](num)
    val minF = (fwd \\ "Min").apply(0).text.toInt
    val maxF = (fwd \\ "Max").apply(0).text.toInt
    val minR = (rec \\ "Min").apply(0).text.toInt
@@ -384,18 +412,39 @@ object CellBlockD {
    for (i <- 0 until num) {
      val sf = "f"+i
      val sr = "r"+i
-     f(i) = new NeuralConnsD(minF,maxF)
-     r(i) = new NeuralConnsD(minR,maxR)
      val fi = (fwd \\ sf)
      val ri = (rec \\ sr)
      val seq = op.filterNodeSeq(fi)
-     for (s <- seq) {
-       f(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
-     }
      val seq2 = op.filterNodeSeq(ri)
-     for (s <- seq2) {
-       r(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,(s \ "expr").text.toBoolean)
+     if (ctype == "Basic") {
+       f(i) = new NeuralConnsD(minF,maxF,maxVal)
+       r(i) = new NeuralConnsD(minR,maxR,maxVal)
+       for (s <- seq) {
+         val b0 = (s \ "expr").text.toBoolean
+         f(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,if (b0) numerics.one else numerics.zero)
+       }
+       for (s <- seq2) {
+         val b0 = (s \ "expr").text.toBoolean
+         r(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,if (b0) numerics.one else numerics.zero)
+       }
      }
+     else if (ctype == "Rigid") {
+       f(i) = new RigidNeuralConnections(minF,maxF,maxVal)
+       r(i) = new RigidNeuralConnections(minR,maxR,maxVal)
+       for (s <- seq) {
+         val r0 = (s \ "rval").text.toByte
+         f(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,r0)
+       }
+       for (s <- seq2) {
+         val r0 = (s \ "rval").text.toByte
+         r(i).addConnection((s \ "dest").text.toInt,(s \ "w").text.toDouble,r0)
+       }
+     }
+     else {
+       //TODO
+     }
+     
+
    }
    val c2 = new CellBlockD(rbias,f,r)
    c2.setBits(bitRep)

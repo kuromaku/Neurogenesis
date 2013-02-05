@@ -16,6 +16,9 @@ import neurogenesis.util.Distribution
 import neurogenesis.util.CComplexityMeasure
 import neurogenesis.util.Constant
 import libsvm._
+import java.io.File
+import java.io.FileWriter
+import scala.xml._
 
 class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Array[OutCellD]) extends EvolvableD {
   val in = inputLayer.length
@@ -127,7 +130,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
   def getIn(idx:Int) : InCellD = inputLayer(idx)
   def getMid(idx:Int) : CellBlockD = cellBlocks(idx)
   def getOut(idx:Int) : OutCellD = outputLayer(idx)
-  
+  /*
   def combine(net2:RNND,dist:Distribution,mutP:Double,flipP:Double) : RNND = {
     val il = new Array[InCellD](in)
     val bl = new Array[CellBlockD](numBlocks)
@@ -143,6 +146,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     new RNND(il,bl,ol)
   }
+  */
   def combine(net2:RNND,dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double) : RNND = {
     val il = new Array[InCellD](in)
     val bl = new Array[CellBlockD](numBlocks)
@@ -378,8 +382,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     
   }
-  def gatherConnections : List[NeuralConnsD] = {
-    var clist = List[NeuralConnsD]()
+  def gatherConnections : List[AbstractNeuralconnections] = {
+    var clist = List[AbstractNeuralconnections]()
     for (i <- 0 until in) {
       clist = clist ++ inputLayer(i).gatherConnections
     }
@@ -403,10 +407,10 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     fitness = f
   }
-  def stimulate(actVal:Double,conn:NeuralConnsD) : Unit = {
-    val cmap = conn.getMap
-    for ((dest,(w,expr)) <- cmap) {
-      if (expr) {
+  def stimulate(actVal:Double,conn:AbstractNeuralconnections) : Unit = {
+    val cmap = conn.getConns
+    for ((dest,w) <- cmap) {
+      
         if (dest < in) {
           inputLayer(dest).stimulate(w*actVal)
         }
@@ -420,7 +424,7 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
         else {
           outputLayer(dest-midPoint).stimulate(w*actVal)
         }
-      }
+      
     }
   }
   //TODO: Test which way to add stims is faster
@@ -481,12 +485,26 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val ip = new Elem(null,"InputLayer",null,tscope,inL: _*)
     val bp = new Elem(null,"BlockLayer",null,tscope,bL: _*)
     val op = new Elem(null,"OutputLayer",null,tscope,oL: _*)
-    val res = <RNND><Fitness>{fitness}</Fitness>{ip}{bp}{op}</RNND>
+    val connType = inputLayer(0).getForward.type2String
+    val res = <RNND><Fitness>{fitness}</Fitness><ConnType>{connType}</ConnType>{ip}{bp}{op}</RNND>
     res
   }
-
+  def write(f:File) : Boolean = {
+    if (f.exists) {
+      false
+    }
+    else {
+      val rnnxml = toXML
+      val fw = new FileWriter(f)
+      //println(tag.head)
+      scala.xml.XML.write(fw,rnnxml.head,"UTF-8",true,null)
+      rnnxml.tail.foreach(e => scala.xml.XML.write(fw,e,"UTF-8",false,null))
+      fw.close     
+      true
+    }
+  }
   
-  // In order to display the network using JUNG we need to transorm it to its SparseGraph representation
+  // In order to display the network using JUNG we need to transform it to its SparseGraph representation
   def toGraph :  SparseGraph[Int,String] = {
     val graph = new SparseGraph[Int,String]()
     val totalNodes = midPoint + out// + numBlocks*3 //gates and all
@@ -495,52 +513,52 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       graph.addVertex(i)
     }
     for (i <- 0 until in) {
-      val cnn = inputLayer(i).getForward.conns
-      for ((dest,(w,b)) <- cnn) {
-        if (b) {
+      val cnn = inputLayer(i).getForward.getConns
+      for ((dest,w) <- cnn) {
+        
           var ws = w.toString
           if (ws.length > 6) {
             ws = ws.substring(0,6)
           }
           graph.addEdge(idx+"f"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
-        }
+        
       }
-      val rnn = inputLayer(i).getRecurrent.conns
-      for ((dest,(w,b)) <- rnn) {
-        if (b) {
+      val rnn = inputLayer(i).getRecurrent.getConns
+      for ((dest,w) <- rnn) {
+        
           var ws = w.toString
           if (ws.length > 6) {
             ws = ws.substring(0,6)
           }
           graph.addEdge(idx+"r"+ws,new Pair[Int](i,dest),EdgeType.DIRECTED)
           idx += 1
-        }
+        
       }
     }
     for (i <- 0 until numBlocks) {
       for (j <- 0 until (synapses-3)) {
-        val cnn = cellBlocks(i).getForward(j).conns
-        for ((dest,(w,b)) <- cnn) {
-          if (b) {
+        val cnn = cellBlocks(i).getForward(j).getConns
+        for ((dest,w) <- cnn) {
+          
             var ws = w.toString
             if (ws.length > 6) {
               ws = ws.substring(0,6)
             }
             graph.addEdge(idx+"f"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
-          }
+          
         }
-        val cnn2 = cellBlocks(i).getRecurrent(j).conns
-        for ((dest,(w,b)) <- cnn2) {
-          if (b) {
+        val cnn2 = cellBlocks(i).getRecurrent(j).getConns
+        for ((dest,w) <- cnn2) {
+          
             var ws = w.toString
             if (ws.length > 6) {
               ws = ws.substring(0,6)
             }
             graph.addEdge(idx+"r"+ws,new Pair[Int](in+i*synapses+j,dest),EdgeType.DIRECTED)
             idx += 1
-          }
+          
         }
       }
       
@@ -557,16 +575,16 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       
     }
     for (i <- 0 until out) {
-      val cnn = outputLayer(i).getRecurrent.conns
-      for ((dest,(w,b)) <- cnn) {
-        if (b) {
+      val cnn = outputLayer(i).getRecurrent.getConns
+      for ((dest,w) <- cnn) {
+        
           var ws = w.toString
           if (ws.length > 4) {
             ws = ws.substring(0,4)
           }
           graph.addEdge(idx+"r"+ws,new Pair[Int](midPoint+i,dest),EdgeType.DIRECTED)
           idx += 1
-        }
+        
       }
     }
     /*
@@ -637,22 +655,24 @@ object RNND {
     val inputs = ilElem \\ "InCellD"
     val blocks = blElem \\ "CellBlockD"
     val outputs = olElem \\ "OutCellD"
+    val maxWeight = (e \\ "MaxWeight").text.toDouble
+    val connType = (e \\ "ConnType").text
     val in = new Array[InCellD](inputs.size)
     var idx = 0
     for (i <- inputs) {
-      in(idx) = InCellD.fromXML(i)
+      in(idx) = InCellD.fromXML(i,maxWeight,connType)
       idx += 1
     }
     val bl = new Array[CellBlockD](blocks.size)
     idx = 0
     for (b <- blocks) {
-      bl(idx) = CellBlockD.fromXML(b)
+      bl(idx) = CellBlockD.fromXML(b,maxWeight,connType)(Numeric.IntIsIntegral)
       idx += 1
     }
     val ol = new Array[OutCellD](outputs.size)
     idx = 0
     for (o <- outputs) {
-      ol(idx) = OutCellD.fromXML(o)
+      ol(idx) = OutCellD.fromXML(o,maxWeight,connType)
       idx += 1
     }
     new RNND(in,bl,ol)

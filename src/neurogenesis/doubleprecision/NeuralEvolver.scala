@@ -769,9 +769,10 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
 
 }
 object NeuralEvolver {
-  def makeEvolver(memoryBlocks:Int,memoryCells:Int,inputs:Int,outputs:Int,subpopSize:Int,distScale:Double,supervisor:EvolutionSupervisor,reporter:ProgressReporter,discardRate:Double=0.75) : NeuralEvolver = {
+  def makeEvolver(memoryBlocks:Int,memoryCells:Int,inputs:Int,outputs:Int,subpopSize:Int,distScale:Double,supervisor:EvolutionSupervisor,reporter:ProgressReporter,connType:String,discardRate:Double=0.75) : NeuralEvolver = {
     var cellPopulation = new CellPopulationD(inputs,memoryBlocks,outputs,subpopSize)
     val rnd2 = new MersenneTwisterFast(System.currentTimeMillis)
+    cellPopulation.setConnectionType(connType)
     cellPopulation.init(distScale,1,rnd2,memoryBlocks+outputs,outputs)
     for (i <- 1 until memoryCells) {
       cellPopulation = cellPopulation.complexify(false,rnd2)

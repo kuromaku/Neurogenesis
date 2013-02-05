@@ -4,9 +4,10 @@ import neurogenesis.util.OutFun
 
 object EvoLauncher {
   
+  /*
   def createCellBlock(rnd:MersenneTwisterFast) : CellBlockD = {
-    val f = new Array[NeuralConnsD](2)
-    val r = new Array[NeuralConnsD](2)
+    val f = new Array[AbstractNeuralconnections](2)
+    val r = new Array[AbstractNeuralconnections](2)
     for (i <- 0 until 2) {
       f(i) = new NeuralConnsD(12,14)
       f(i).addRandomConnections(3,rnd)
@@ -64,9 +65,9 @@ object EvoLauncher {
     inRec2.addConnection(7,1)
     in(1) = new InCellD(inFwd2,inRec2)
     val cb = new Array[CellBlockD](2)
-    val cbFwd1 = new Array[NeuralConnsD](2)
-    val cbFwd2 = new Array[NeuralConnsD](2)
-    val cbRec = new Array[NeuralConnsD](2)
+    val cbFwd1 = new Array[AbstractNeuralconnections](2)
+    val cbFwd2 = new Array[AbstractNeuralconnections](2)
+    val cbRec = new Array[AbstractNeuralconnections](2)
     for (i <- 0 until 2) {
       cbFwd1(i) = new NeuralConnsD(12,14)
       cbFwd2(i) = new NeuralConnsD(12,14)
@@ -131,6 +132,7 @@ object EvoLauncher {
     println("XML rep of RNN:")
     println(rnn.toXML)
   }
+  /*
   def testCombine3(num:Int) : (Boolean,Int) = {
     var pass = true
     var i = 0
@@ -155,6 +157,10 @@ object EvoLauncher {
     }
     (pass,i)
   }
+  
+  */
+  * 
+  */
   def testCombine1(num:Int) : (Boolean,Int) = {
     var pass = true
     var i = 0

@@ -33,10 +33,10 @@ class RandCellRepopulator(deathRate:Double) extends Repopulator[CellPopulationD]
         }
         nextGen(k) = inputPop(i)(idx1).combine(inputPop(i)(idx2),dist,mutProb,flipProb,rnd,discardRate)
       }
-      val rf = new NeuralConnsD(minNode1,maxNode1)
-      rf.addRandomConnections(numNew,rnd)
-      val rf2 = new NeuralConnsD(0,maxNode1)
-      rf2.addRandomConnections((scala.math.random*2).toInt,rnd)
+      val rf = createConnections(minNode1,maxNode1,pop.getMaxWeight,numNew,rnd)//new NeuralConnsD(minNode1,maxNode1)
+      //rf.addRandomConnections(numNew,rnd)
+      val rf2 = createConnections(0,maxNode1,pop.getMaxWeight,(scala.math.random*2).toInt,rnd)//new NeuralConnsD(0,maxNode1)
+      //rf2.addRandomConnections((scala.math.random*2).toInt,rnd)
       nextGen(0) = new InCellD(rf,rf2)
       for (k <- h until popSize) {
         nextGen(k) = inputPop(i)(k)
@@ -63,13 +63,13 @@ class RandCellRepopulator(deathRate:Double) extends Repopulator[CellPopulationD]
         }
         nextGen(j) = blockPop(i)(k).combine(blockPop(i)(l),dist,mutProb,flipProb,rnd,discardRate)
       }
-      val rf = new Array[NeuralConnsD](mcells)
-      val rf2 = new Array[NeuralConnsD](mcells)
+      val rf = new Array[AbstractNeuralconnections](mcells)
+      val rf2 = new Array[AbstractNeuralconnections](mcells)
       for (j <- 0 until mcells) {
-        rf(j) = new NeuralConnsD(minNode2,maxNode2)
-        rf(j).addRandomConnections(numNew-1,rnd)
-        rf2(j) = new NeuralConnsD(0,maxNode2)
-        rf2(j).addRandomConnections((scala.math.random*2).toInt,rnd)
+        rf(j) = createConnections(minNode2,maxNode2,pop.getMaxWeight,numNew-1,rnd)//new NeuralConnsD(minNode2,maxNode2)
+        //rf(j).addRandomConnections(numNew-1,rnd)
+        rf2(j) = createConnections(0,maxNode2,pop.getMaxWeight,(scala.math.random*2).toInt,rnd)//new NeuralConnsD(0,maxNode2)
+        //rf2(j).addRandomConnections((scala.math.random*2).toInt,rnd)
       }
       nextGen(0) = new CellBlockD(blockBias,rf,rf2)
       for (j <- h until popSize) {

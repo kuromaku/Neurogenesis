@@ -4,8 +4,11 @@ class AdaptiveSchedule(p1:Double,p2:Double,max:Long) extends CoolingSchedule {
   var mutProb = p1
   var flipProb = p2
   val minDataUse = 500
-  def update(f:Double): Unit = { //test and modify later
-    var adjustment = if (f < 1.0 && f > 0.0) 3.0 else if (f >= 1.0) 3.0/f else 1.0
+  /*Modifies the mutation parameters based on current fitness value
+   * 
+   */
+  def update(f:Double): Unit = { //TODO: think of a better scheme
+    var adjustment = if (f < 1.0 && f > 0.0) 2.0 else if (f >= 1.0 && f <= 5) 2.0/f else 0.2
     
     mutProb = adjustment*p1*(max-step)/max
     if (mutProb > 0.9) {

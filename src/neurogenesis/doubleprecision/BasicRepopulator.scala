@@ -8,7 +8,7 @@ class BasicRepopulator extends Repopulator[CellPopulationD] {
     val mutProb = schedule.getProb1
     val flipProb = schedule.getProb2
     val popSize = pop.getSize
-    val h = popSize - 2
+    val h = popSize - 2 //popSize-h of the most fit cells will be preserved
     //var ipop = new Array[Array[InCellD]](inputs) 
     val inputs = pop.getIn
     val inputPop = pop.getInPop

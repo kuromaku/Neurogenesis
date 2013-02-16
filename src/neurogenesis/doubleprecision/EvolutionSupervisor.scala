@@ -25,7 +25,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   var printInfo = true
   val reporter = new ProgressReporter(tArea)
   reporter.start
-  var maxFit = 0.0d
+  var globalMaxFitness = 0.0d
   var saveCounter = 1
   var saveFrequency = 5000L
   var cmeasure:ComplexityMeasure = new SimpleMeasure
@@ -53,7 +53,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           }
           var i = 0
           while (runningThreads < maxThreads && i < evolvers.length) {
-            evolvers(i)._1 ! UpdateNow(counter)
+            evolvers(i)._1 ! UpdateNow(counter,globalMaxFitness)
             runningThreads += 1
             if (printInfo) {
               reporter ! ProgressMessage("Number of running threads: "+runningThreads)
@@ -61,7 +61,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             i += 1
           }
         }
-        case UpdateNow(step) => {
+        case UpdateNow(step,gfitness) => {
           //reporter ! ProgressMessage("Supervisor is updating: "+step.toString+"\n")
           
           //let's try if this solves the halting problem
@@ -78,7 +78,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           var i = 0
           while (freeThreads && i < evolvers.length) {
             if (!evolvers(i)._1.isRunning) {
-              evolvers(i)._1 ! UpdateNow(counter)
+              evolvers(i)._1 ! UpdateNow(counter,globalMaxFitness)
               runningThreads += 1
               if (runningThreads == maxThreads) {
                 freeThreads = false
@@ -96,7 +96,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
           }
           //Probably not necessary
           if (freeThreads) {
-            this ! UpdateNow(counter)
+            this ! UpdateNow(counter,globalMaxFitness)
           }
         }
         case StatusMessage(bestFitness,from) => {
@@ -112,9 +112,9 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
             }
             idx += 1
           }
-          if (bestFitness > maxFit) {
-            maxFit = bestFitness
-            fLabel.text_=("Fitness: "+maxFit.toString.substring(0,7))
+          if (bestFitness > globalMaxFitness) {
+            globalMaxFitness = bestFitness
+            fLabel.text_=("Fitness: "+globalMaxFitness.toString.substring(0,7))
           }
           if (printInfo) {
             val fRep = bestFitness.toString
@@ -141,7 +141,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
               mixingStep += 1
             }
           }
-          this ! UpdateNow(counter)
+          this ! UpdateNow(counter,globalMaxFitness)
         }
         
         case BirthMessageD(evo2,evo3) => {
@@ -338,7 +338,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
     running = false
     runningThreads = 0
     exitInProgress = false
-    maxFit = 0.0d
+    globalMaxFitness = 0.0d
     saveCounter = 1
     exitCounter = 0
     totalCounter = 0
@@ -346,7 +346,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
   def getSuperStar : RNND = {
     var idx = 0
     while (idx < evolvers.size) {
-      val n = evolvers(idx)._1.getBestIfPossible(maxFit)
+      val n = evolvers(idx)._1.getBestIfPossible(globalMaxFitness)
       if (n != null) {
         return n
       }
@@ -402,7 +402,7 @@ class EvolutionSupervisor(tArea:TextArea,fLabel:Label,numThreads:Int,saveWhenExi
       totalGenerations += g
     }
     tArea.append("Total number of steps evolved: "+totalGenerations+"\n")
-    this ! UpdateNow(0)
+    this ! UpdateNow(0,globalMaxFitness)
   }
   def runDiagnostics : List[(Int,Double)] = {
     var ivals = List[(Int,Double)]()

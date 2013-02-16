@@ -16,7 +16,7 @@ abstract class AbstractNeuralconnections(maxVal:Double) {
 	//def getFullIterator[T] : Iterator[(Int,(Double,T))]
     def getMin : Int = minNode
 	def getMax : Int = maxNode
-	
+	def getMaxWeight : Double = maxVal
 	def addConnection(dest:Int,weight:Double) : Boolean
     /*
     implicit def anyval2Byte(anyval:AnyVal) : Byte = {

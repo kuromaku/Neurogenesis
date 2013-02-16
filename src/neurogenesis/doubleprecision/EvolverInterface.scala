@@ -1252,7 +1252,7 @@ class EvolverInterface extends SimpleSwingApplication {
 	      bestRNN.reset
 	      val svmParam = getSVMParameter(bestRNN)
           val svmCols = dworker.getCols(0)
-          val results = bestRNN.svmRegression(dworker.getData(0),svmCols,actFun,svmParam,dworker.getData(2))
+          val results = bestRNN.svmRegression(dworker.getData(0),svmCols,actFun,svmParam,dworker.getData(2).toArray)
           val q = dworker.getData(3).toArray
           NeuralOps.plotResults(results,q)
 	    }
@@ -1522,7 +1522,7 @@ class EvolverInterface extends SimpleSwingApplication {
       dworker.initSVM
       val p = getSVMParameter(rnn)
       val data2 = if (idx < 5) dworker.getData(2) else dworker.getData(2) ++ dworker.getData(4)
-      val res2 = rnn.svmRegression(dworker.getData(0),dworker.getCols(0),actFun,p,data2)
+      val res2 = rnn.svmRegression(dworker.getData(0),dworker.getCols(0),actFun,p,data2.toArray)
       append2Area(res2)
       res = res.:+(res2)
     }
@@ -1662,7 +1662,7 @@ class EvolverInterface extends SimpleSwingApplication {
         writer.write(bestNet.toXML.toString)
         writer.flush
       }
-      else {
+      else { //Only useful for later graph drawing
         val graphRep = bestNet.toGraph
       
         val gWriter = new GraphMLWriter[Int,String]
@@ -1697,6 +1697,7 @@ class EvolverInterface extends SimpleSwingApplication {
       compressor.flush
       compressor.close
       fout.close
+      reportArea.append("Writing the networks to the file: "+f.getPath+"\n")
       true
     }
     else {

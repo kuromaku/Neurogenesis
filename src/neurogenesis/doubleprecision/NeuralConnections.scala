@@ -196,31 +196,6 @@ class NeuralConnections[T](min:Int,max:Int,maxVal:Double)(implicit numerics:Nume
     <NConns><Min>{minNode}</Min><Max>{maxNode}</Max><MaxVal>{maxVal}</MaxVal>{for (c <- conns) yield <cnn><dest>{c._1}</dest><w>{c._2._1}</w><rval>{c._2._2}</rval></cnn>}</NConns>
   }
   override def type2String : String = "NeuralT"
-  /*
-	var Node:Int
-	var maxNode:Int
-	//
-	//def getMap : Map[Int,(Double,Boolean)]
-	def getConns : Map[Int,Double]
-	def getIter : Iterator[(Int,Double)]
-	
-    def getMin : Int = Node
-	def getMax : Int = maxNode
-	
-
-    def dist(nc2:NeuralConnections[T]) : Double
-    def equals(other:NeuralConnections[T]) : Boolean
-	def getDestinations : Set[Int]
-	def makeClone : NeuralConnections[T]
-    def set(conns2:Map[Int,(Double,T)]) : Unit
-    def createConnections(min:Int,max:Int,conns2:Map[Int,(Double,T)]) : NeuralConnections[T]
-    def burstMutate(prob:Double,dist:Distribution,rnd:MersenneTwisterFast) : NeuralConnections[T]
-    def combine(nc2:NeuralConnections[T],dist:Distribution,mutP:Double,flipP:Double,rnd:MersenneTwisterFast,discardRate:Double = 0.75) : NeuralConnections[T]
-    def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : NeuralConnections[T]
-
-
-	def toXML : Elem
-	*/
 }
 /*
 object NeuralConnections {

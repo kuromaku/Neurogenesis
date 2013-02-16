@@ -13,6 +13,7 @@ import edu.uci.ics.jung.graph.util.Pair
 import edu.uci.ics.jung.graph.util.EdgeType
 import neurogenesis.util.XMLOperator
 import neurogenesis.util.Distribution
+import neurogenesis.util.CauchyDistribution
 import neurogenesis.util.CComplexityMeasure
 import neurogenesis.util.Constant
 import libsvm._
@@ -180,6 +181,27 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     new RNND(il,bl,ol)
   }
+  /*Adds either another block to the network or memory cells to existing blocks. 
+   *Note: Does not set the cell ID to the new block if such is added
+   * 
+   */
+  def complexify(in:Int,blocks:Int,memCells:Int,out:Int,addBlock:Boolean,rnd:MersenneTwisterFast) : RNND = {
+      val newIn = new Array[InCellD](in)
+      for (i <- 0 until in) {
+        newIn(i) = inputLayer(i).complexify(in,blocks,memCells,out,true,rnd)
+      }
+      var newBlocks = new Array[CellBlockD](if (addBlock) blocks+1 else blocks)
+      for (i <- 0 until blocks) {
+        newBlocks(i) = cellBlocks(i).complexify(in,blocks,memCells,out,true,rnd)
+      }
+      if (addBlock) { newBlocks(blocks) = newBlocks(rnd.nextInt(blocks)).burstMutate(0.5,new CauchyDistribution(0.01),rnd)}
+      val newOut = new Array[OutCellD](out)
+      for (i <- 0 until out) {
+        newOut(i) = outputLayer(i).complexify(in,blocks,memCells,out,true,rnd)
+      }
+      new RNND(newIn,newBlocks,newOut)
+
+  }
   def distance(net2:RNND) : Double = {
     var di = 0.0
     for (i <- 0 until in) {
@@ -246,6 +268,25 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     m
     
   }
+  def evolinoFeed(inputData:Array[Array[Double]],actFun:Function1[Double,Double],washout:Int) : DenseMatrix[Double] = {
+    val stateSize = out + numBlocks*blockSize
+    val dSize = inputData.size-washout
+    val mDat = new Array[Double](dSize*stateSize)
+    val m = new DenseMatrix(dSize,stateSize,mDat)
+    var idx = 0
+    
+    for (db <- inputData) {
+      val od = evolinoActivate(db,actFun)
+      if (idx >= washout) {
+        for (j <- 0 until stateSize) {
+          m.update(idx-washout,j,od(j))
+        }
+      }
+      idx += 1
+    }
+    m
+    
+  }  
   /*Feeds data and returns results in a format that can be used by libsvm
    * 
    */
@@ -269,7 +310,27 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     sNodes
     //,targetCol:Array[Double]
   }
-  def svmRegression(inputData:Traversable[Array[Double]],targetCols:Array[Array[Double]],actFun:Function1[Double,Double],svmParam:svm_parameter,data2:Traversable[Array[Double]],washout:Int=100) : Array[Array[Double]] = {
+  def svmFeed(inputData:Array[Array[Double]],actFun:Function1[Double,Double],washout:Int) : Array[Array[svm_node]] = {
+    val sNodes = new Array[Array[svm_node]](inputData.size-washout)
+    var idx = 0
+    val stateL = blockSize + out
+    for (r <- inputData) {
+      val res = evolinoActivate(r,actFun)
+      if (idx >= washout) {
+        sNodes(idx-washout) = new Array[svm_node](stateL)
+        for (i <- 0 until stateL) {
+          val node = new svm_node
+          node.index = i
+          node.value = res(i)
+          sNodes(idx-washout)(i) = node
+        }
+      }
+      idx += 1
+    }
+    sNodes
+    //,targetCol:Array[Double]
+  }
+  def svmRegression(inputData:Traversable[Array[Double]],targetCols:Array[Array[Double]],actFun:Function1[Double,Double],svmParam:svm_parameter,data2:Array[Array[Double]],washout:Int=100) : Array[Array[Double]] = {
     val nodes = svmFeed(inputData,actFun,washout)
     //val probs = new Array[svm_problem](targetCols.length)
     val res = Array.ofDim[Double](data2.size,targetCols.length)
@@ -287,6 +348,24 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     }
     res
   }
+  def svmRegression(inputData:Array[Array[Double]],targetCols:Array[Array[Double]],actFun:Function1[Double,Double],svmParam:svm_parameter,data2:Array[Array[Double]],washout:Int) : Array[Array[Double]] = {
+    val nodes = svmFeed(inputData,actFun,washout)
+    //val probs = new Array[svm_problem](targetCols.length)
+    val res = Array.ofDim[Double](data2.size,targetCols.length)
+    val nodes2 = svmFeed(data2,actFun,0)
+    for (i <- 0 until targetCols.length) {
+      val prob = new svm_problem
+      prob.l = targetCols(i).length
+      prob.x = nodes
+      prob.y = targetCols(i)
+
+      val svm_model = svm.svm_train(prob,svmParam) //
+      for (j <- 0 until nodes2.length) {
+        res(j)(i) = svm.svm_predict(svm_model,nodes2(j))
+      }
+    }
+    res
+  }  
   def linearRegression(inputData:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double],washout:Int=100) : DenseMatrix[Double] = {
     
     val X = evolinoFeed(inputData,actFun,washout)
@@ -305,6 +384,24 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       }
     }
   }
+  def linearRegression(inputData:Array[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double],washout:Int) : DenseMatrix[Double] = {
+    
+    val X = evolinoFeed(inputData,actFun,washout)
+    val Xt = X.t
+    val X2 = Xt * X
+    try {
+      val XXinv = LinearAlgebra.pinv(X2.toDense)
+      val X3 = Xt * targetMatrix
+      val X4 = XXinv * X3
+      X4
+    } catch {
+      case _ => {
+        null
+        //val il = inputData.head.length
+        //new DenseMatrix(il,targetMatrix.numCols,new Array[Double](il*targetMatrix.numCols))
+      }
+    }
+  }  
   def linearPredict(inputData:Traversable[Array[Double]],inputData2:Traversable[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double],washout:Int=100) : Array[Array[Double]] = {
     val M = linearRegression(inputData,targetMatrix,actFun,washout)
     if (M == null) {
@@ -323,6 +420,24 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
       res
       }
   }
+  def linearPredict(inputData:Array[Array[Double]],inputData2:Array[Array[Double]],targetMatrix:DenseMatrix[Double],actFun:Function1[Double,Double],washout:Int) : Array[Array[Double]] = {
+    val M = linearRegression(inputData,targetMatrix,actFun,washout)
+    if (M == null) {
+      //let's return a zero matrix if a problem occurs in calculating the regression matrix
+      Array.ofDim[Double](targetMatrix.numRows,targetMatrix.numCols)
+    }
+    else {
+      val output0 = evolinoFeed(inputData2,actFun,washout)
+      val Y = output0 * M
+      val res = Array.ofDim[Double](Y.numRows,Y.numCols)
+      for (i <- 0 until res.length) {
+        for (j <- 0 until res(i).length) {
+          res(i)(j) = Y.apply(i,j)
+        }
+      }
+      res
+      }
+  }  
   def evolinoValidate(in2:Traversable[Array[Double]],out2:Traversable[Array[Double]],actFun:Function1[Double,Double],rMatrix:DenseMatrix[Double],washout:Int=100) : Double = {
     var error = 0.0
     val output1 = evolinoFeed(in2,actFun,0)
@@ -486,7 +601,8 @@ class RNND(inputLayer:Array[InCellD],cellBlocks:Array[CellBlockD],outputLayer:Ar
     val bp = new Elem(null,"BlockLayer",null,tscope,bL: _*)
     val op = new Elem(null,"OutputLayer",null,tscope,oL: _*)
     val connType = inputLayer(0).getForward.type2String
-    val res = <RNND><Fitness>{fitness}</Fitness><ConnType>{connType}</ConnType>{ip}{bp}{op}</RNND>
+    val res = <RNND><Fitness>{fitness}</Fitness><ConnType>{connType}</ConnType>
+    <MaxWeight>{inputLayer(0).getForward.getMaxWeight.toString}</MaxWeight>{ip}{bp}{op}</RNND>
     res
   }
   def write(f:File) : Boolean = {

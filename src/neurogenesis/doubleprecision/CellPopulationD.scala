@@ -35,10 +35,9 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
   def createConnections(min:Int,max:Int,mval:Double,cnum:Int,crnd:MersenneTwisterFast) : AbstractNeuralconnections = {
     var nc: AbstractNeuralconnections = null
     connType match {
-      case "Rigid" => nc = new RigidNeuralConnections(min,max,mval)
-      case "Basic" => nc = new NeuralConnsD(min,max,mval)
+      case "Rigid" => { nc = new RigidNeuralConnections(min,max,mval); nc.addRandomConnections(cnum,crnd) }
+      case "Basic" => { nc = new NeuralConnsD(min,max,mval); nc.addRandomConnections(cnum,crnd) }
     }
-    nc.addRandomConnections(cnum,crnd)
     nc
   }
   def init(scale:Double,outBias:Double,rnd:MersenneTwisterFast,numFor:Int=5,numRec:Int=3) : Unit = {
@@ -51,9 +50,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       inputPop(i) = new Array[InCellD](popSize)
       for (j <- 0.until(popSize)) {
         val fc = createConnections(inputs,total,maxW,numFor,rnd) //new NeuralConnsD(inputs,total)
-        //fc.addRandomConnections(numFor,rnd)
         val rc = createConnections(0,total,maxW,numRec,rnd)//new NeuralConnsD(0,total)
-        
         inputPop(i)(j) = new InCellD(fc,rc)
         inputPop(i)(j).setID(cellCounter)
         add2Counter
@@ -68,7 +65,6 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
         val rc = new Array[AbstractNeuralconnections](mCells)
         for (k <- 0 until mCells) {
           fc(k) = createConnections(mid,total,maxW,numFor-blocks,rnd)//new NeuralConnsD(mid,total)
-          //fc(k).addRandomConnections(numFor-blocks,rnd)
           rc(k) = createConnections(0,total,maxW,numRec,rnd)//new NeuralConnsD(0,total)
         }
         blockPop(i)(j) = new CellBlockD(memBias,fc,rc)
@@ -79,8 +75,6 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
     for (i <- 0.until(outputs)) {
       outputPop(i) = new Array[OutCellD](popSize)
       for (j <- 0.until(popSize)) {
-        //val rc = new NeuralConnsD(0,total)
-        //rc.addRandomConnections(numRec,rnd)
         outputPop(i)(j) = new OutCellD(outBias,createConnections(0,total,maxW,numRec,rnd))
         outputPop(i)(j).setID(cellCounter)
         cellCounter += 1
@@ -204,6 +198,7 @@ class CellPopulationD(inputs:Int,blocks:Int,outputs:Int,popSize:Int)  {
       }
     }
     cp2.replaceCells(inputPop2,blockPop2,outputPop2)
+    cp2.setConnectionType(connType)
     cp2
   }
   def complexify(addBlock:Boolean,rnd:MersenneTwisterFast) : CellPopulationD = {

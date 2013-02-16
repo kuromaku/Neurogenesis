@@ -37,6 +37,8 @@ class InCellD(fConns:AbstractNeuralconnections,rConns:AbstractNeuralconnections)
   def gatherConnections : List[AbstractNeuralconnections] = {
     List(fConns,rConns)
   }
+  def getMaxWeight : Double = fConns.getMaxWeight
+  
   override def setFitness(f:Double,measure:ComplexityMeasure,cBias:Double) : Unit = {
     val c = measure.calculateComplexity(List(fConns,rConns),cBias)
     if (c != 0) {

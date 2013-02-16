@@ -20,8 +20,9 @@ import scalala.library.random.MersenneTwisterFast
 import libsvm._
 
 class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:EvolutionSupervisor,reporter:ProgressReporter,rnd:MersenneTwisterFast,discardRate:Double=0.75) extends Actor {
+  type TWISTER = MersenneTwisterFast
   var proceed = true
-  var dataSets = List[List[Array[Double]]]() // 0 training inputs, 1 training targets, 2 validation inputs, 3 validation targets...
+  var dataSets = List[Array[Array[Double]]]() // 0 training inputs, 1 training targets, 2 validation inputs, 3 validation targets...
   var useCompression = true //Let's compress by default when saving the populations
   var cellPopulation = cellPop
   var netPopulation = netPop
@@ -93,7 +94,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
    so this method initializes it when necessary
    */
   def initMatrix : Unit = {
-    matrix = NeuralOps.list2Matrix(dataSets.apply(1).drop(washoutTime)) //.drop(washoutTime)
+    matrix = NeuralOps.array2Matrix(dataSets.apply(1).drop(washoutTime)) //.drop(washoutTime)
   }
   var initialized = false
   def setMatrix(m2:DenseMatrix[Double]) : Unit = { matrix = m2; initialized = true }
@@ -109,13 +110,13 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     }
     loop {
       react {
-        case UpdateNow(step) => {
+        case UpdateNow(step,globalFitness) => {
           updatingNow = true
           //println("Evo"+myId+" Step: "+schedule.getCurrent)
           //TODO: Verify logic
           val (d0,d1,d2,d3) = sliceData2 //slices datasets if only using partial data
           if (partialDataFeed && learningMode == 2) {
-            matrix = NeuralOps.list2Matrix(d1)
+            matrix = NeuralOps.array2Matrix(d1)
             /*
             if (washoutTime == 0) {
               matrix = NeuralOps.list2Matrix(d1)
@@ -209,7 +210,12 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             lastBestFitness = bestFitness
             addToBestNets(netPopulation.getRNN(netPopulation.netPop.length-1))
             if (printInfo) {
-              reporter ! ProgressMessage("Evo "+myId+" found a new better solution with fitness: "+bestFitness.toString.substring(0,7))
+              if (bestFitness > globalFitness && step > 1) {
+                reporter ! ProgressMessage("Evo "+myId+" found a global best solution with fitness: "+bestFitness.toString.substring(0,7))
+              }
+              else {
+                reporter ! ProgressMessage("Evo "+myId+" found a local improvement with fitness: "+bestFitness.toString.substring(0,7))
+              }  
               reporter ! ProgressMessage("There was no progress for "+noImprovementCounter+" generations")
             }
             noImprovementCounter = 0
@@ -259,17 +265,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             }
           }
           netRepopulator.repopulate(netPopulation,cellPopulation,bestNets,distribution,schedule,rnd,discardRate)
-          /*
-          if (learningMode == 0 || (learningMode == 1 && !bestNetsReady)) {
-            netPop.repopulate(cellPopulation)
-          }
-          else if (learningMode == 1 && bestNetsReady) {
-            netPop.repopulate(cellPopulation,bestNets,distribution,schedule.getProb1,schedule.getProb2,rnd)
-          }
-          else {
-            netPop.repopulate(cellPopulation)
-          }
-          */
+
           if (!spawned && spawnNow) {
             val sizes = netPopulation.getSizes
             var evo2:NeuralEvolver = null
@@ -278,7 +274,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               val cPop2 = cellPopulation.complexify(false,rnd)
               val nPop2 = new NetPopulationD(cPop2)
               nPop2.init
-              evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
+              evo2 = new NeuralEvolver(cPop2,nPop2,supervisor,reporter,new TWISTER(System.currentTimeMillis()+scala.util.Random.nextLong),discardRate)
               configure(evo2)
             }
             else {
@@ -288,7 +284,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
               val cPop3 = cellPopulation.complexify(true,rnd)
               val nPop3 = new NetPopulationD(cPop3)
               nPop3.init
-              evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,reporter,new MersenneTwisterFast(System.currentTimeMillis()),discardRate)
+              evo3 = new NeuralEvolver(cPop3,nPop3,supervisor,reporter,new TWISTER(System.currentTimeMillis()+scala.util.Random.nextLong),discardRate)
               configure(evo3)
             }
             else {
@@ -357,13 +353,17 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     }
 
   }
-  def addDLists(dat:List[List[Array[Double]]]) : Unit = { dataSets = dataSets ++ dat }
+  def addDLists(dat:List[List[Array[Double]]]) : Unit = { 
+    for (dl <- dat) {
+      dataSets = dataSets ++ List(dl.toArray) 
+      }
+  }
   
   /*Sets the major evolutionary parameters of a newly spawned NeuralEvolver to the values of
    * its parent
    */
   def configure(e:NeuralEvolver) : Unit = {
-    e.setDLists(dataSets)
+    e.setDArrays(dataSets)
     e.setActFun(actFun)
     e.setComplexityMeasure(cMeasure)
     e.setSavePath(savePath)
@@ -380,8 +380,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     }
     e.setSaveFreq(saveFreq)
   }
-  def setDLists(dlists:List[List[Array[Double]]]) : Unit = { dataSets = dlists }
-  
+  //def setDLists(dlists:List[List[Array[Double]]]) : Unit = { dataSets = dlists }
+  def setDArrays(arrays:List[Array[Array[Double]]]) : Unit = { dataSets = arrays}
+  /*
   def sliceData : (List[Array[Double]],List[Array[Double]],List[Array[Double]],List[Array[Double]]) = {
     val (d0,d0b) = if (partialDataFeed) { 
           dataSets.apply(0).splitAt(schedule.getFeedLength(0)) } 
@@ -389,7 +390,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
     val (d1,d1b) = if (partialDataFeed) { 
             dataSets.apply(1).splitAt(schedule.getFeedLength(1)) } 
             else (dataSets.apply(1),null)
-    val d2:List[Array[Double]] = if (learningMode >=2 ) {
+    val d2:Array[Array[Double]] = if (learningMode >=2 ) {
             if (partialDataFeed) {
               val d0bl = d0b.length
               val d2l = schedule.getFeedLength(2)
@@ -405,7 +406,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
             }
           }
           else null
-   val d3:List[Array[Double]] = if (learningMode >=2 ) {
+   val d3:Array[Array[Double]] = if (learningMode >=2 ) {
             if (partialDataFeed) {
               val d1bl = d1b.length
               val d3l = schedule.getFeedLength(3)
@@ -423,7 +424,9 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
           else null
     (d0,d1.drop(washoutTime),d2,d3)
   }
-  def sliceData2 : (List[Array[Double]],List[Array[Double]],List[Array[Double]],List[Array[Double]]) = {
+  * 
+  */
+  def sliceData2 : (Array[Array[Double]],Array[Array[Double]],Array[Array[Double]],Array[Array[Double]]) = {
     if (!partialDataFeed) {
       dataSets.size match {
         case 5 => (dataSets.apply(0),dataSets.apply(1),dataSets.apply(2),dataSets.apply(3))
@@ -656,7 +659,7 @@ class NeuralEvolver(cellPop:CellPopulationD,netPop:NetPopulationD,supervisor:Evo
       
         if (learningMode == 2) {
           n.reset
-          val rM = n.linearRegression(dataSets.apply(0),NeuralOps.list2Matrix(dataSets.apply(1)),actFun)
+          val rM = n.linearRegression(dataSets.apply(0),NeuralOps.array2Matrix(dataSets.apply(1)),actFun)
           val fw2 = new FileOutputStream(f.getParent()+"weightMatrix.txt")
           Storage.storetxt(fw2,rM)//
           fw2.close

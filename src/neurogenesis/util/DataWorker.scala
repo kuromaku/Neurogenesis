@@ -34,12 +34,18 @@ class DataWorker(reporter:ProgressReporter,worker:InterfaceWorker,autoNormalize:
 	
 	def getCount : Int = counter
 	def getData(idx:Int) : List[Array[Double]] = data.apply(idx)
+	def getDataArray(idx:Int) : Array[Array[Double]] = data.apply(idx).toArray
+	
 	def normalizeData(b:Boolean) : Unit = { normalize = b }
 	//def getNodes(idx:Int) = svmNodes.apply(idx)
 	def getCols(idx:Int) = svmCols.apply(idx)
 	def setMode(b:Boolean) : Unit = { normalMode = b }
 	def setDivideData(b:Boolean) : Unit = { allFromOneArray = b }
 	def setWashoutTime(t:Int) : Unit = { washoutTime = t }
+	
+	/*A method that tests whether the training input dimension agrees with the validation input dimension
+	 * along with the dimensions of training targets and validation targets
+	 */
 	def checkData : Unit = {
 	  if (counter == 2) {
 	    if (data.head(0).length == data.tail.head(0).length) {

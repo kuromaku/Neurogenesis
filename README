@@ -27,6 +27,8 @@ jcommon-1.0.17.jar            jung-graph-impl-2.0.1.jar  scalala_2.9.1-1.0.0.RC3
 
 (some other versions of those will probably work as well...)
 
+[JDK7 warning: Based on some testing  it seems that using java version 1.7 will result in the program running into an infinite loop. JDK6 or 5 should be fine though.]
+
 Of course eventually (after all the major bugs and performance issues have been fixed) a fully working and runnable jar file will be added for the convenience of users.
 
 ==Features==
@@ -35,7 +37,3 @@ Of course eventually (after all the major bugs and performance issues have been 
 -- An experimental support for using support vector machine regression (mode: SVMBoost), provided by a minimally modified libsvm library included in the repository, has been added in order to boost the prediction performance in some situations in addition of least squares regression (mode: Evolino) implemented using the Scalala library.
 -- Some modularity in design allowing easy addition of evolutionary strategies
 -- The ability to set the minimum and maximum network sizes to bound the evolutionary process
--- Visualization of evolved networks implemented using the JUNG-library
-
-==Development Blog==
-The author writes occasional blog posts related to the software at http://kuromakukreations.wordpress.com

@@ -90,7 +90,6 @@ class OutCellD(bias:Double,rConns:AbstractNeuralconnections) extends EvolvableD 
   }
 
   override def toString : String = "<OutCellD>"+rConns+"\n</OutCellD>"
-  //def this(e:Elem) = this((e \\ "Bias").text.toDouble,NeuralConnsD.fromXML((e \\ "NeuralConnsD")))
 }
 object OutCellD {
   def fromXML(e:Elem,maxVal:Double,ctype:String) : OutCellD = {

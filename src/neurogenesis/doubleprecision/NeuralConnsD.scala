@@ -930,7 +930,6 @@ class NeuralConnsD(min:Int,max:Int,maxVal:Double=3.0)(implicit tricks:Numeric[By
 	  nc2
 	}
 	
-	def connsToString : String = conns.toString()
 	def toString2() : String = "<NeuralConnsD>\n"+conns.toString+"\n</NeuralConnsD>"
 	override def toString : String = conns.toString
 	override def toXML : Elem = {
